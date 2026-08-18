@@ -98,6 +98,7 @@ macro_rules! throw {
     };
 }
 
+#[cfg(feature = "all-trace")]
 #[macro_export]
 macro_rules! catch {
     ($expr:expr) => {
@@ -108,7 +109,7 @@ macro_rules! catch {
     };
 }
 
-#[cfg(feature = "no-trace")]
+#[cfg(not(feature = "all-trace"))]
 #[macro_export]
 macro_rules! catch {
     ($expr:expr) => {
