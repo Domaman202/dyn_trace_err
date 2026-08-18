@@ -1,27 +1,58 @@
+//! Stack trace implementation.
+//!
+//! Contains the [`Trace`] structure, which is a linked list of trace points.
+//! Each point stores a string description (usually `file:line`) and a reference to the previous point.
+
 use alloc::boxed::Box;
 use alloc::string::String;
 use core::fmt::{Display, Formatter};
 
+/// A structure representing a stack trace.
+///
+/// Consists of the current point and a reference to the previous one (`prev`).
+/// When displayed via `Display`, it produces a tree‑like representation.
 pub struct Trace {
+    /// Description of the current point (e.g., `"src/main.rs:42"` or an arbitrary string).
     pub point: String,
-    pub prev: Option<Box<Trace>>
+    /// The previous trace point (closer to the root of the error).
+    pub prev: Option<Box<Trace>>,
 }
 
+/// Helper wrapper for formatted output with indentation.
 struct TraceDisplayWrapper<'a> {
     trace: &'a Trace,
-    inner: usize
+    inner: usize,
 }
 
 impl Trace {
+    /// Creates a new trace object.
+    ///
+    /// # Parameters
+    /// - `point` – a string describing the point.
+    /// - `prev` – the previous point (may be `None` for the root).
+    ///
+    /// # Example
+    /// ```
+    /// # use dyn_trace_err::trace::Trace;
+    /// let trace = Trace::new("foo".to_string(), None);
+    /// assert_eq!(trace.point, "foo");
+    /// ```
     #[inline(always)]
     pub fn new(point: String, prev: Option<Trace>) -> Self {
-        Self { point, prev: prev.map(Box::new) }
+        Self {
+            point,
+            prev: prev.map(Box::new),
+        }
     }
 
+    /// Internal formatting helper that respects the nesting level.
     fn display(&self, fmt: &mut Formatter<'_>, inner: usize) -> core::fmt::Result {
         write!(fmt, "| [{}] {}", inner, self.point)?;
         if let Some(prev) = &self.prev {
-            write!(fmt, "\n{}", TraceDisplayWrapper { trace: prev, inner: inner + 1 })?;
+            write!(fmt, "\n{}", TraceDisplayWrapper {
+                trace: prev,
+                inner: inner + 1,
+            })?;
         }
         Ok(())
     }
