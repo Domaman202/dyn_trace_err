@@ -29,6 +29,7 @@ impl Display for StringException {
     }
 }
 
+#[cfg(not(feature = "no-trace"))]
 #[macro_export]
 macro_rules! throw_string {
     ($msg:expr) => {
@@ -39,5 +40,16 @@ macro_rules! throw_string {
     };
     ($msg:expr, $cause:expr, $trace:expr) => {
         $crate::throw!($crate::r#impl::StringException::new($msg.to_string(), $cause), $trace);
+    };
+}
+
+#[cfg(feature = "no-trace")]
+#[macro_export]
+macro_rules! throw_string {
+    ($msg:expr) => {
+        $crate::throw!($crate::r#impl::StringException::new($msg.to_string(), None));
+    };
+    ($msg:expr, $cause:expr) => {
+        $crate::throw!($crate::r#impl::StringException::new($msg.to_string(), $cause));
     };
 }
