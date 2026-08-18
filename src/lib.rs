@@ -21,7 +21,6 @@ pub mod trace;
 extern crate alloc;
 
 use alloc::boxed::Box;
-use alloc::string::String;
 use core::fmt::{Display, Formatter};
 
 pub struct Error {
@@ -53,8 +52,8 @@ impl Error {
 
     #[cfg(not(feature = "no-trace"))]
     #[inline(always)]
-    pub fn trace_point(self, point: String) -> Self {
-        Self { throw: self.throw, trace: trace::Trace::new(point, Some(self.trace)) }
+    pub fn trace_point(self, trace: fn(prev: trace::Trace) -> trace::Trace) -> Self {
+        Self { throw: self.throw, trace: trace(self.trace) }
     }
 
     fn display(&self, fmt: &mut Formatter<'_>, inner: usize) -> core::fmt::Result {
@@ -82,11 +81,22 @@ impl Display for ErrorDisplayWrapper<'_> {
     }
 }
 
-#[cfg(not(feature = "no-trace"))]
+#[cfg(feature = "all-trace")]
 #[macro_export]
 macro_rules! throw {
     ($expr:expr) => {
         return Err($crate::Error::new($expr, $crate::trace::Trace::new(format!("{}:{}", file!(), line!()), None)));
+    };
+    ($expr:expr, $trace:expr) => {
+        return Err($crate::Error::new($expr, $trace));
+    };
+}
+
+#[cfg(feature = "my-trace")]
+#[macro_export]
+macro_rules! throw {
+    ($expr:expr, $trace:expr) => {
+        return Err($crate::Error::new($expr, $trace));
     };
 }
 
@@ -104,12 +114,29 @@ macro_rules! catch {
     ($expr:expr) => {
         match $expr {
             Ok(val) => val,
-            Err(e) => return Err(e.trace_point(format!("{}:{}", file!(), line!())))
+            Err(e) => return Err(e.trace_point(|prev| $crate::trace::Trace::new(format!("{}:{}", file!(), line!()), Some(prev))))
+        }
+    };
+    ($expr:expr, $trace:expr) => {
+        match $expr {
+            Ok(val) => val,
+            Err(e) => return Err(e.trace_point($trace))
         }
     };
 }
 
-#[cfg(not(feature = "all-trace"))]
+#[cfg(feature = "my-trace")]
+#[macro_export]
+macro_rules! catch {
+    ($expr:expr, $trace:expr) => {
+        match $expr {
+            Ok(val) => val,
+            Err(e) => return Err(e.trace_point($trace))
+        }
+    };
+}
+
+#[cfg(feature = "no-trace")]
 #[macro_export]
 macro_rules! catch {
     ($expr:expr) => {
@@ -124,8 +151,8 @@ macro_rules! catch {
 mod tests {
     use super::*;
     use crate::r#impl::StringException;
-    use alloc::string::ToString;
     use alloc::format;
+    use alloc::string::ToString;
     use alloc::vec::Vec;
 
     /// Проверяем, что макрос возвращает ошибку с правильным сообщением и трейсом
@@ -136,9 +163,6 @@ mod tests {
             let msg = "Something went wrong".to_string();
             // Создаём исключение без причины
             throw!(StringException::new(msg, None));
-            // Эта строка никогда не выполнится
-            #[allow(unreachable_code)]
-            Ok(())
         }
 
         let result = failing_function();
@@ -239,7 +263,7 @@ mod tests {
 
         fn outer() -> Result<(), Error> {
             if let Err(e) = inner() {
-                throw_string!("Outer error", e);
+                throw_string!("Outer error", Some(e));
             }
             Ok(())
         }

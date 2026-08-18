@@ -35,6 +35,9 @@ macro_rules! throw_string {
         $crate::throw!($crate::r#impl::StringException::new($msg.to_string(), None));
     };
     ($msg:expr, $cause:expr) => {
-        $crate::throw!($crate::r#impl::StringException::new($msg.to_string(), Some($cause)));
+        $crate::throw!($crate::r#impl::StringException::new($msg.to_string(), $cause));
+    };
+    ($msg:expr, $cause:expr, $trace:expr) => {
+        $crate::throw!($crate::r#impl::StringException::new($msg.to_string(), $cause), $trace);
     };
 }
