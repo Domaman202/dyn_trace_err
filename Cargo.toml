@@ -1,0 +1,12 @@
+[package]
+name = "dyn_trace_err"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+default = ["all-trace"]
+all-trace = []
+my-trace = []
+no-trace = []
+
+[dependencies]
