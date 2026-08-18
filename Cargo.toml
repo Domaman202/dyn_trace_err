@@ -4,7 +4,6 @@ version = "0.1.2"
 edition = "2024"
 authors = ["DomamaN202"]
 description = "Dynamic errors with a stack trace."
-license = "MIT"
 license-file = "LICENSE"
 readme = "README.md"
 homepage = "https://github.com/Domaman202/dyn_trace_err"
