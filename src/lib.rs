@@ -29,11 +29,17 @@
 //!     Ok(catch!(bar(value)))
 //! }
 //!
-//! # fn main() -> Result<(), Error> {
-//! println!("{}", catch!(foo(21))?);
-//! println!("{}", catch!(foo(1))?); // this will error
-//! # Ok(())
-//! # }
+//! fn run() -> Result<(), Error> {
+//!     println!("{}", catch!(foo(21)));
+//!     println!("{}", catch!(foo(1)));
+//!     Ok(())
+//! }
+//!
+//! fn main() {
+//!     if let Err(e) = run() {
+//!         println!("Error: {}", e);
+//!     }
+//! }
 //! ```
 
 #![no_std]
@@ -167,12 +173,12 @@ impl Display for ErrorDisplayWrapper<'_> {
 /// # Example
 /// ```
 /// # use dyn_trace_err::{throw, Error, IThrowable};
-/// # use core::fmt;
+/// # use core::fmt::{self, Display};
 /// # struct MyError;
 /// # impl Display for MyError { fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { write!(f, "MyError") } }
 /// # impl IThrowable for MyError { fn cause(&self) -> &Option<Box<Error>> { &None } }
 /// # fn example() -> Result<(), Error> {
-/// throw!(MyError);
+/// throw!(Box::new(MyError));
 /// # Ok(())
 /// # }
 /// ```
@@ -222,7 +228,7 @@ macro_rules! throw {
 /// # use dyn_trace_err::{catch, throw_string, Error};
 /// # fn fallible() -> Result<(), Error> { Err(throw_string!("fail")) }
 /// # fn example() -> Result<(), Error> {
-/// catch!(fallible())?;
+/// catch!(fallible());
 /// # Ok(())
 /// # }
 /// ```
