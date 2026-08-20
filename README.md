@@ -16,14 +16,14 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-dyn_trace_err = "0.1.1"
+dyn_trace_err = "0.1.3"
 ```
 
 By default the `"all-trace"` feature is enabled. To select a different mode, specify it explicitly:
 
 ```toml
 [dependencies.dyn_trace_err]
-version = "0.1.1"
+version = "0.1.3"
 default-features = false
 features = ["my-trace"]   # or "no-trace"
 ```
@@ -123,18 +123,57 @@ A convenient wrapper that creates an error of type `StringException` (a built‑
 
 In `no-trace` mode only the first two forms are available.
 
+### `throw_display!` (new)
+
+Creates an error from any type that implements `Display`, storing it as `DisplayableException`. Useful when you already have an error type that is `Display` but you don’t want to implement `IThrowable` manually.
+
+**Available forms:**
+
+- `throw_display!($expr)` – just a displayable value.
+- `throw_display!($expr, $cause)` – displayable value and a cause.
+- (for `all-trace` / `my-trace`) `throw_display!($expr, $cause, $trace)` – with an explicit trace.
+
+In `no-trace` mode only the first two forms are available.
+
 ---
 
-## 📝 Built‑in `StringException`
+## 📝 Built‑in Error Types
 
-The library provides a ready‑made `IThrowable` implementation – `StringException`. It stores a string message and an optional cause.
+### `StringException`
+
+Stores a string message and an optional cause.
 
 ```rust
 let err = StringException::new("Something went wrong".to_string(), None);
 throw!(err);   // with all-trace it will add an automatic trace
 ```
 
-The `throw_string!` macro uses this type, so for simple cases you don't need to write your own error types.
+The `throw_string!` macro uses this type.
+
+### `DisplayableException` (new)
+
+Wraps any type that implements `Display`. Useful when you want to throw an error that is not a string but you don’t want to implement `IThrowable`.
+
+```rust
+use dyn_trace_err::throw_display;
+
+#[derive(Debug)]
+enum MyError {
+    Foo,
+    Bar,
+}
+
+impl Display for MyError {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        match self {
+            MyError::Foo => write!(f, "Foo error"),
+            MyError::Bar => write!(f, "Bar error"),
+        }
+    }
+}
+
+throw_display!(MyError::Foo); // creates an error with that displayable value
+```
 
 ---
 
@@ -256,9 +295,50 @@ All ok! Value: 33
 
 ---
 
+### 4. Using `throw_display!` with a custom enum
+
+```rust
+use dyn_trace_err::{throw_display, catch, Error};
+use std::fmt;
+
+#[derive(Debug)]
+enum MyAppError {
+    InvalidInput,
+    NetworkFailure,
+}
+
+impl fmt::Display for MyAppError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            MyAppError::InvalidInput => write!(f, "Invalid input provided"),
+            MyAppError::NetworkFailure => write!(f, "Network failure occurred"),
+        }
+    }
+}
+
+fn parse_input() -> Result<(), Error> {
+    // ... some logic ...
+    throw_display!(MyAppError::InvalidInput)
+}
+
+fn fetch_data() -> Result<(), Error> {
+    match parse_input() {
+        Ok(()) => Ok(()),
+        Err(e) => throw_display!(MyAppError::NetworkFailure, Some(e)),
+    }
+}
+
+fn main() -> Result<(), Error> {
+    catch!(fetch_data());
+    Ok(())
+}
+```
+
+---
+
 ## 🧩 Creating Your Own Error Type
 
-If `StringException` is not sufficient, implement the `IThrowable` trait for your own type:
+If the built‑in types are not sufficient, implement the `IThrowable` trait for your own type:
 
 ```rust
 use dyn_trace_err::{IThrowable, Error};

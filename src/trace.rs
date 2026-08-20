@@ -2,6 +2,10 @@
 //!
 //! Contains the [`Trace`] structure, which is a linked list of trace points.
 //! Each point stores a string description (usually `file:line`) and a reference to the previous point.
+//!
+//! Traces are used inside the [`Error`](crate::Error) type and are automatically
+//! added by the `throw!` and `catch!` macros when the `all-trace` feature is enabled,
+//! or manually provided when using the `my-trace` feature.
 
 use alloc::boxed::Box;
 use alloc::string::String;

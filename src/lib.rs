@@ -9,7 +9,8 @@
 //!   - `my-trace` — you explicitly pass a `Trace` object.
 //!   - `no-trace` — tracing completely disabled.
 //! - Nested causes via the `IThrowable` trait.
-//! - Convenient macros: `throw!`, `catch!`, and `throw_string!`.
+//! - Convenient macros: `throw!`, `catch!`, `throw_string!`, and `throw_display!`.
+//! - Built‑in error types: `StringException` and `DisplayableException`.
 //!
 //! ## Example
 //! ```
@@ -41,7 +42,7 @@
 //!     }
 //! }
 //! ```
-
+//! 
 #![no_std]
 
 // Ensure exactly one tracing feature is selected.
