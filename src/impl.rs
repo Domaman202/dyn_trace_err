@@ -14,9 +14,17 @@ use crate::{Error, IThrowable};
 /// A simple [`IThrowable`] implementation that stores a string message and an optional cause.
 ///
 /// Usually created via [`StringException::new`] or the [`throw_string!`] macro.
+///
+/// # Example
+/// ```
+/// # use dyn_trace_err::{Error, r#impl::StringException};
+/// # use dyn_trace_err::IThrowable;
+/// let err = StringException::new("Oops".to_string(), None);
+/// assert_eq!(err.to_string(), "Oops");
+/// ```
 pub struct StringException {
     message: String,
-    cause: Option<Box<Error>>,
+    cause: Option<Box<Error<dyn IThrowable>>>,
 }
 
 /// A [`IThrowable`] implementation that wraps any type implementing [`Display`].
@@ -40,7 +48,7 @@ pub struct StringException {
 /// ```
 pub struct DisplayableException {
     display: Box<dyn Display>,
-    cause: Option<Box<Error>>,
+    cause: Option<Box<Error<dyn IThrowable>>>,
 }
 
 impl StringException {
@@ -58,7 +66,7 @@ impl StringException {
     /// assert_eq!(err.to_string(), "Oops");
     /// ```
     #[inline(always)]
-    pub fn new(message: String, cause: Option<Error>) -> Box<dyn IThrowable> {
+    pub fn new(message: String, cause: Option<Error<dyn IThrowable>>) -> Box<dyn IThrowable> {
         Box::new(Self {
             message,
             cause: cause.map(Box::new),
@@ -68,7 +76,7 @@ impl StringException {
 
 impl IThrowable for StringException {
     #[inline(always)]
-    fn cause(&self) -> &Option<Box<Error>> {
+    fn cause(&self) -> &Option<Box<Error<dyn IThrowable>>> {
         &self.cause
     }
 }
@@ -86,8 +94,21 @@ impl DisplayableException {
     /// # Parameters
     /// - `display` – a boxed value that implements `Display`.
     /// - `cause` – an optional cause (another error).
+    ///
+    /// # Example
+    /// ```
+    /// # use dyn_trace_err::{Error, r#impl::DisplayableException};
+    /// # use std::fmt;
+    /// # #[derive(Debug)]
+    /// # enum MyError { Foo }
+    /// # impl fmt::Display for MyError {
+    /// #     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { write!(f, "Foo error") }
+    /// # }
+    /// let err = DisplayableException::new(Box::new(MyError::Foo), None);
+    /// assert_eq!(err.to_string(), "Foo error");
+    /// ```
     #[inline(always)]
-    pub fn new(display: Box<dyn Display>, cause: Option<Error>) -> Box<dyn IThrowable> {
+    pub fn new(display: Box<dyn Display>, cause: Option<Error<dyn IThrowable>>) -> Box<dyn IThrowable> {
         Box::new(Self {
             display,
             cause: cause.map(Box::new),
@@ -97,7 +118,7 @@ impl DisplayableException {
 
 impl IThrowable for DisplayableException {
     #[inline(always)]
-    fn cause(&self) -> &Option<Box<Error>> {
+    fn cause(&self) -> &Option<Box<Error<dyn IThrowable>>> {
         &self.cause
     }
 }
@@ -123,8 +144,8 @@ impl Display for DisplayableException {
 ///
 /// # Example
 /// ```
-/// # use dyn_trace_err::{throw_string, Error};
-/// # fn example() -> Result<(), Error> {
+/// # use dyn_trace_err::{throw_string, Error, IThrowable};
+/// # fn example() -> Result<(), Error<dyn IThrowable>> {
 /// throw_string!("Invalid input");
 /// # Ok(())
 /// # }
@@ -169,11 +190,11 @@ macro_rules! throw_string {
 ///
 /// # Example
 /// ```
-/// # use dyn_trace_err::throw_display;
+/// # use dyn_trace_err::{throw_display, IThrowable};
 /// # use std::fmt;
 /// # #[derive(Debug)] enum E { A }
 /// # impl fmt::Display for E { fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { write!(f, "E") } }
-/// # fn example() -> Result<(), dyn_trace_err::Error> {
+/// # fn example() -> Result<(), dyn_trace_err::Error<dyn IThrowable>> {
 /// throw_display!(E::A);
 /// # Ok(())
 /// # }
@@ -196,9 +217,9 @@ macro_rules! throw_display {
 #[macro_export]
 macro_rules! throw_display {
     ($display:expr) => {
-        $crate::throw!($crate::r#impl::DisplayableException::new($display, None));
+        $crate::throw!($crate::r#impl::DisplayableException::new(Box::new($display), None));
     };
     ($display:expr, $cause:expr) => {
-        $crate::throw!($crate::r#impl::DisplayableException::new($display, $cause));
+        $crate::throw!($crate::r#impl::DisplayableException::new(Box::new($display), $cause));
     };
 }

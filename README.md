@@ -16,14 +16,14 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-dyn_trace_err = "0.1.3"
+dyn_trace_err = "0.2.0"
 ```
 
 By default the `"all-trace"` feature is enabled. To select a different mode, specify it explicitly:
 
 ```toml
 [dependencies.dyn_trace_err]
-version = "0.1.3"
+version = "0.2.0"
 default-features = false
 features = ["my-trace"]   # or "no-trace"
 ```
@@ -49,14 +49,18 @@ The library provides **exactly three modes**, and you must select **exactly one*
 The main error type returned from functions:
 
 ```rust
-pub struct Error {
-    pub throw: Box<dyn IThrowable>,
+pub struct Error<T: IThrowable + ?Sized> {
+    throw: Box<T>,
     #[cfg(not(feature = "no-trace"))]
-    pub trace: trace::Trace,
+    trace: trace::Trace,
 }
 ```
 
 Implements `Display` – when printed, it outputs the error message and the entire chain of causes with their traces (if any).
+
+#### Methods
+
+- `throwable(&self) -> &T` – returns a reference to the error payload (the type implementing `IThrowable`). This allows you to access additional data stored in your custom error type.
 
 ### `IThrowable`
 
@@ -64,7 +68,7 @@ The trait that your error types must implement:
 
 ```rust
 pub trait IThrowable: Display {
-    fn cause(&self) -> &Option<Box<Error>>;
+    fn cause(&self) -> &Option<Box<Error<dyn IThrowable>>>;
 }
 ```
 
@@ -76,7 +80,7 @@ A structure representing the call stack:
 
 ```rust
 pub struct Trace {
-    pub point: String,         // description of the point (e.g., "file:line" or a custom string)
+    pub point: String,
     pub prev: Option<Box<Trace>>,
 }
 ```
@@ -123,7 +127,7 @@ A convenient wrapper that creates an error of type `StringException` (a built‑
 
 In `no-trace` mode only the first two forms are available.
 
-### `throw_display!` (new)
+### `throw_display!`
 
 Creates an error from any type that implements `Display`, storing it as `DisplayableException`. Useful when you already have an error type that is `Display` but you don’t want to implement `IThrowable` manually.
 
@@ -150,12 +154,13 @@ throw!(err);   // with all-trace it will add an automatic trace
 
 The `throw_string!` macro uses this type.
 
-### `DisplayableException` (new)
+### `DisplayableException`
 
 Wraps any type that implements `Display`. Useful when you want to throw an error that is not a string but you don’t want to implement `IThrowable`.
 
 ```rust
 use dyn_trace_err::throw_display;
+use std::fmt;
 
 #[derive(Debug)]
 enum MyError {
@@ -163,8 +168,8 @@ enum MyError {
     Bar,
 }
 
-impl Display for MyError {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+impl fmt::Display for MyError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             MyError::Foo => write!(f, "Foo error"),
             MyError::Bar => write!(f, "Bar error"),
@@ -336,7 +341,117 @@ fn main() -> Result<(), Error> {
 
 ---
 
-## 🧩 Creating Your Own Error Type
+### 5. Accessing error data via `throwable()`
+
+Sometimes you need to extract additional data from the error. The `throwable()` method returns a reference to the payload, and you can call your own methods.
+
+```rust
+use dyn_trace_err::{Error, IThrowable, throw, catch, throw_string};
+use std::fmt;
+
+#[derive(Debug)]
+struct MyError {
+    code: u32,
+    message: String,
+    cause: Option<Box<Error<dyn IThrowable>>>,
+}
+
+impl IThrowable for MyError {
+    fn cause(&self) -> &Option<Box<Error<dyn IThrowable>>> {
+        &self.cause
+    }
+}
+
+impl fmt::Display for MyError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Code {}: {}", self.code, self.message)
+    }
+}
+
+impl MyError {
+    fn code(&self) -> u32 {
+        self.code
+    }
+}
+
+fn fail() -> Result<(), Error<dyn IThrowable>> {
+    let err = MyError {
+        code: 404,
+        message: "Not found".to_string(),
+        cause: None,
+    };
+    throw!(Box::new(err));
+}
+
+fn main() -> Result<(), Error<dyn IThrowable>> {
+    let result = fail();
+    if let Err(e) = result {
+        let my_err = e.throwable();
+        println!("Error code: {}", my_err.code());
+        println!("Full error: {}", e);
+    }
+    Ok(())
+}
+```
+
+---
+
+### 6. Creating a custom error type with fields and methods
+
+You can implement `IThrowable` for your own type, adding any fields and methods. This allows you to carry contextual information along with the error.
+
+```rust
+use dyn_trace_err::{Error, IThrowable, throw, throw_string};
+use std::fmt;
+
+enum MyErrorVariant {
+    ErrorFoo(i32),
+    ErrorBar(f32),
+}
+
+impl fmt::Display for MyErrorVariant {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            MyErrorVariant::ErrorFoo(v) => write!(f, "Foo: {}", v),
+            MyErrorVariant::ErrorBar(v) => write!(f, "Bar: {}", v),
+        }
+    }
+}
+
+impl IThrowable for MyErrorVariant {
+    fn cause(&self) -> &Option<Box<Error<dyn IThrowable>>> {
+        &None  // no nested cause in this example
+    }
+}
+
+impl MyErrorVariant {
+    pub fn value(&self) -> f32 {
+        match self {
+            MyErrorVariant::ErrorFoo(v) => *v as f32,
+            MyErrorVariant::ErrorBar(v) => *v,
+        }
+    }
+}
+
+fn bar() -> Result<(), Error<MyErrorVariant>> {
+    throw!(Box::new(MyErrorVariant::ErrorBar(21.777)));
+}
+
+fn foo() -> Result<(), Error<MyErrorVariant>> {
+    throw!(Box::new(MyErrorVariant::ErrorFoo(12)));
+}
+
+fn main() -> Result<(), Error<dyn IThrowable>> {
+    let foo_err = foo().unwrap_err();
+    let bar_err = bar().unwrap_err();
+    let sum = foo_err.throwable().value() + bar_err.throwable().value();
+    throw_string!(format!("foo({}) + bar({}) = {}", foo_err.throwable().value(), bar_err.throwable().value(), sum));
+}
+```
+
+---
+
+## 🧩 Creating Your Own Error Type (general case)
 
 If the built‑in types are not sufficient, implement the `IThrowable` trait for your own type:
 
@@ -346,11 +461,11 @@ use core::fmt;
 
 struct MyError {
     details: String,
-    cause: Option<Box<Error>>,
+    cause: Option<Box<Error<dyn IThrowable>>>,
 }
 
 impl IThrowable for MyError {
-    fn cause(&self) -> &Option<Box<Error>> {
+    fn cause(&self) -> &Option<Box<Error<dyn IThrowable>>> {
         &self.cause
     }
 }
@@ -366,7 +481,7 @@ Then use `throw!` with an instance:
 
 ```rust
 let err = MyError { details: "oops".into(), cause: None };
-throw!(err); // with all-trace it will add an automatic trace
+throw!(Box::new(err)); // with all-trace it will add an automatic trace
 ```
 
 ---
