@@ -118,6 +118,48 @@ pub struct Error<T: IThrowable + ?Sized> {
     trace: trace::Trace,
 }
 
+/// A type alias for [`Error`] with dynamic dispatch over [`IThrowable`].
+///
+/// `AnyError` is the most commonly used error type in this crate. It allows you to
+/// hold any concrete error type that implements [`IThrowable`] without specifying
+/// the exact type, making it convenient for functions that want to return a generic
+/// error or propagate errors from different sources.
+///
+/// This type is especially useful with the provided macros (`throw!`, `catch!`,
+/// `throw_string!`, `throw_display!`), which by default return `Result<T, AnyError>`.
+///
+/// # Example
+/// ```
+/// use dyn_trace_err::{AnyError, throw_string, catch, IThrowable};
+///
+/// fn fallible(flag: bool) -> Result<(), AnyError> {
+///     if flag {
+///         throw_string!("Something went wrong");
+///     }
+///     Ok(())
+/// }
+///
+/// fn caller() -> Result<(), AnyError> {
+///     catch!(fallible(true));
+///     Ok(())
+/// }
+///
+/// # fn main() -> Result<(), AnyError> {
+/// #     caller()
+/// # }
+/// ```
+///
+/// # Accessing the inner payload
+/// You can use the [`throwable()`](Error::throwable) method to get a reference to
+/// the inner error object and call its custom methods (if you downcast or know
+/// the concrete type).
+///
+/// # Tracing
+/// The behavior of `AnyError` regarding stack traces depends on the enabled
+/// feature (`all-trace`, `my-trace`, or `no-trace`). Refer to the crate-level
+/// documentation for details.
+pub type AnyError = Error<dyn IThrowable>;
+
 /// Helper wrapper for formatting an error chain with indentation.
 struct ErrorDisplayWrapper<'a> {
     error: &'a Error<dyn IThrowable>,
