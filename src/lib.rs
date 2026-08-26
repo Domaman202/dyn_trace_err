@@ -144,8 +144,10 @@ pub struct Error<T: IThrowable + ?Sized> {
 ///     Ok(())
 /// }
 ///
-/// # fn main() -> Result<(), AnyError> {
-/// #     caller()
+/// # fn main() {
+/// #     if let Err(e) = caller() {
+/// #         eprintln!("Error: {}", e);
+/// #     }
 /// # }
 /// ```
 ///
