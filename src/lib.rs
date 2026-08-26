@@ -89,7 +89,7 @@ pub mod trace;
 extern crate alloc;
 
 pub use alloc::boxed::Box;
-use core::fmt::{Display, Formatter};
+use core::fmt::{Debug, Display, Formatter};
 
 /// The main error type.
 ///
@@ -275,7 +275,21 @@ impl Display for Error<dyn IThrowable> {
     }
 }
 
+impl Debug for Error<dyn IThrowable> {
+    #[inline(always)]
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        self.display(f, 0)
+    }
+}
+
 impl Display for ErrorDisplayWrapper<'_> {
+    #[inline(always)]
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        self.error.display(f, self.inner)
+    }
+}
+
+impl Debug for ErrorDisplayWrapper<'_> {
     #[inline(always)]
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         self.error.display(f, self.inner)
