@@ -203,13 +203,13 @@ macro_rules! throw_string {
 #[macro_export]
 macro_rules! throw_display {
     ($display:expr) => {
-        $crate::throw!($crate::r#impl::DisplayableException::new(Box::new($display), None));
+        $crate::throw!($crate::r#impl::DisplayableException::new($crate::Box::new($display), None));
     };
     ($display:expr, $cause:expr) => {
-        $crate::throw!($crate::r#impl::DisplayableException::new(Box::new($display), $cause));
+        $crate::throw!($crate::r#impl::DisplayableException::new($crate::Box::new($display), $cause));
     };
     ($display:expr, $cause:expr, $trace:expr) => {
-        $crate::throw!($crate::r#impl::DisplayableException::new(Box::new($display), $cause), $trace);
+        $crate::throw!($crate::r#impl::DisplayableException::new($crate::Box::new($display), $cause), $trace);
     };
 }
 
@@ -217,9 +217,9 @@ macro_rules! throw_display {
 #[macro_export]
 macro_rules! throw_display {
     ($display:expr) => {
-        $crate::throw!($crate::r#impl::DisplayableException::new(Box::new($display), None));
+        $crate::throw!($crate::r#impl::DisplayableException::new($crate::Box::new($display), None));
     };
     ($display:expr, $cause:expr) => {
-        $crate::throw!($crate::r#impl::DisplayableException::new(Box::new($display), $cause));
+        $crate::throw!($crate::r#impl::DisplayableException::new($crate::Box::new($display), $cause));
     };
 }

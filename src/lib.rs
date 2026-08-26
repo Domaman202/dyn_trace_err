@@ -88,7 +88,7 @@ pub mod trace;
 
 extern crate alloc;
 
-use alloc::boxed::Box;
+pub use alloc::boxed::Box;
 use core::fmt::{Display, Formatter};
 
 /// The main error type.
