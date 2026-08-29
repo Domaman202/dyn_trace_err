@@ -190,21 +190,21 @@ struct ErrorDisplayWrapper<'a> {
 /// ```
 /// # use dyn_trace_err::{IThrowable, Error};
 /// # use std::fmt;
-/// #[derive(Debug)]
-/// struct MyError {
-///     msg: String,
-///     cause: Option<Box<Error<dyn IThrowable>>>,
-/// }
-/// impl IThrowable for MyError {
-///     fn cause(&self) -> &Option<Box<Error<dyn IThrowable>>> {
-///         &self.cause
-///     }
-/// }
-/// impl fmt::Display for MyError {
-///     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-///         write!(f, "{}", self.msg)
-///     }
-/// }
+/// # #[derive(Debug)]
+/// # struct MyError {
+/// #     msg: String,
+/// #     cause: Option<Box<Error<dyn IThrowable>>>,
+/// # }
+/// # impl IThrowable for MyError {
+/// #     fn cause(&self) -> &Option<Box<Error<dyn IThrowable>>> {
+/// #         &self.cause
+/// #     }
+/// # }
+/// # impl fmt::Display for MyError {
+/// #     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+/// #         write!(f, "{}", self.msg)
+/// #     }
+/// # }
 /// ```
 pub trait IThrowable: Debug + Display {
     /// Returns a reference to the nested error (cause), if any.

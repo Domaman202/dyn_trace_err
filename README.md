@@ -16,14 +16,14 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-dyn_trace_err = "0.4.0"
+dyn_trace_err = "0.4.1"
 ```
 
 By default the `"all-trace"` feature is enabled. To select a different mode, specify it explicitly:
 
 ```toml
 [dependencies.dyn_trace_err]
-version = "0.4.0"
+version = "0.4.1"
 default-features = false
 features = ["my-trace"]   # or "no-trace"
 ```

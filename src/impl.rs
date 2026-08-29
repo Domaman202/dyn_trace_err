@@ -103,7 +103,14 @@ impl<T> Debug for FormattableFromDisplay<T> where T: Display {
     }
 }
 
-impl<T> Formattable for FormattableFromDisplay<T> where T: Display {}
+impl<T> Formattable for FormattableFromDisplay<T> where T: Display {
+}
+
+impl<T> From<T> for FormattableFromDisplay<T> where T: Display {
+    fn from(value: T) -> FormattableFromDisplay<T> {
+        FormattableFromDisplay(value)
+    }
+}
 
 impl<T> Display for FormattableFromDebug<T> where T: Debug {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
@@ -114,6 +121,15 @@ impl<T> Display for FormattableFromDebug<T> where T: Debug {
 impl<T> Debug for FormattableFromDebug<T> where T: Debug {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         self.0.fmt(f)
+    }
+}
+
+impl<T> Formattable for FormattableFromDebug<T> where T: Debug {
+}
+
+impl<T> From<T> for FormattableFromDebug<T> where T: Debug {
+    fn from(value: T) -> FormattableFromDebug<T> {
+        FormattableFromDebug(value)
     }
 }
 
