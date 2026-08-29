@@ -13,6 +13,14 @@
 //! - Built‑in error types: `StringException` and `DisplayableException`.
 //! - Access to error payload via `throwable()` method.
 //!
+//! ## Formatting
+//! The [`Error`] type implements two formatting traits:
+//! - `Display` → prints **only the error message** (without causes or traces).
+//! - `Debug`   → prints the **full error chain** with all causes and stack traces.
+//!
+//! This separation allows you to show concise user‑friendly messages or detailed
+//! diagnostic information depending on the context.
+//!
 //! ## Example
 //! ```
 //! use dyn_trace_err::{throw_string, catch, Error, IThrowable};
@@ -32,14 +40,17 @@
 //! }
 //!
 //! fn run() -> Result<(), Error<dyn IThrowable>> {
-//!     println!("{}", catch!(foo(21)));
-//!     println!("{}", catch!(foo(1)));
+//!     println!("{}", catch!(foo(21)));   // Display: only the ok value
+//!     println!("{}", catch!(foo(1)));    // Display: only error message
 //!     Ok(())
 //! }
 //!
 //! # fn main() {
 //! #     if let Err(e) = run() {
+//! #         // Show only the error message
 //! #         println!("Error: {}", e);
+//! #         // Show full chain with traces
+//! #         println!("Full trace: {:?}", e);
 //! #     }
 //! # }
 //! ```
@@ -96,7 +107,9 @@ use core::fmt::{Debug, Display, Formatter};
 /// Contains the payload (`throw`) that implements [`IThrowable`], and (unless `no-trace` is enabled)
 /// a stack trace ([`Trace`](trace::Trace)).
 ///
-/// Implements [`Display`] to pretty‑print the entire error chain with traces.
+/// # Formatting
+/// - `Display` → prints only the error message (from `throw`).
+/// - `Debug`   → prints the full error chain with all causes and stack traces.
 ///
 /// # Type parameter
 /// `T` must implement `IThrowable + ?Sized`. Most commonly you will use `dyn IThrowable`
@@ -259,7 +272,7 @@ impl<T: IThrowable + ?Sized> Error<T> {
         #[cfg(not(feature = "no-trace"))]
         write!(fmt, "\n{}", self.trace)?;
         if let Some(cause) = self.throw.cause() {
-            write!(fmt, "\n{}", ErrorDisplayWrapper {
+            write!(fmt, "\n{:?}", ErrorDisplayWrapper {
                 error: cause,
                 inner: inner + 1,
             })?;
@@ -271,7 +284,7 @@ impl<T: IThrowable + ?Sized> Error<T> {
 impl Display for Error<dyn IThrowable> {
     #[inline(always)]
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-        self.display(f, 0)
+        self.throw.fmt(f)
     }
 }
 
@@ -279,13 +292,6 @@ impl Debug for Error<dyn IThrowable> {
     #[inline(always)]
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         self.display(f, 0)
-    }
-}
-
-impl Display for ErrorDisplayWrapper<'_> {
-    #[inline(always)]
-    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-        self.error.display(f, self.inner)
     }
 }
 
@@ -571,7 +577,7 @@ mod tests {
         }
 
         let err = outer().unwrap_err();
-        let output = format!("{}", err);
+        let output = format!("{:?}", err);
         // Должны присутствовать оба сообщения
         assert!(output.contains("[0] Outer"));
         assert!(output.contains("[1] Inner"));
@@ -763,7 +769,7 @@ mod tests {
         );
         // Оборачиваем внешнюю ошибку в Error, чтобы получить цепочку с трейсами
         let outer_error = Error::new(outer, Trace::new("outer_trace".to_string(), None));
-        let output = format!("{}", outer_error);
+        let output = format!("{:?}", outer_error);
         assert!(output.contains("[0] Outer"));
         assert!(output.contains("[1] Inner"));
     }

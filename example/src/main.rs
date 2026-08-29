@@ -7,6 +7,10 @@
 //! - `throw_string!` macro (`string_exception`),
 //! - and `throw_display!` macro (`display_exception`).
 //! - custom error type with fields and methods (`custom_throwable`).
+//!
+//! At the end, errors are printed in two formats:
+//! - `Display` (with `{}`) – shows only the error message.
+//! - `Debug`   (with `{:?}`) – shows the full chain including causes and traces.
 
 mod custom_traced {
     use dyn_trace_err::trace::Trace;
@@ -165,10 +169,18 @@ mod custom_throwable {
 }
 
 fn main() {
-    println!("{}\n", custom_traced::test().unwrap_err().to_string());
-    println!("{}\n", traced::test().unwrap_err().to_string());
-    println!("{}\n", caused::test().unwrap_err().to_string());
-    println!("{}\n", string_exception::test().unwrap_err().to_string());
-    println!("{}\n", display_exception::test().unwrap_err().to_string());
-    println!("{}\n", custom_throwable::test().unwrap_err().to_string());
+    println!("\n =========== [Display] =========== \n");
+    println!("{}\n", custom_traced::test().unwrap_err());
+    println!("{}\n", traced::test().unwrap_err());
+    println!("{}\n", caused::test().unwrap_err());
+    println!("{}\n", string_exception::test().unwrap_err());
+    println!("{}\n", display_exception::test().unwrap_err());
+    println!("{}\n", custom_throwable::test().unwrap_err());
+    println!("\n ============ [Debug] ============ \n");
+    println!("{:?}\n", custom_traced::test().unwrap_err());
+    println!("{:?}\n", traced::test().unwrap_err());
+    println!("{:?}\n", caused::test().unwrap_err());
+    println!("{:?}\n", string_exception::test().unwrap_err());
+    println!("{:?}\n", display_exception::test().unwrap_err());
+    println!("{:?}\n", custom_throwable::test().unwrap_err());
 }

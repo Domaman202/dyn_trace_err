@@ -56,7 +56,11 @@ pub struct Error<T: IThrowable + ?Sized> {
 }
 ```
 
-Implements `Display` – when printed, it outputs the error message and the entire chain of causes with their traces (if any).
+**Formatting:**
+- `Display` (`{}`) – prints **only the error message** (from the innermost error payload).  
+  This is suitable for user‑facing messages.
+- `Debug` (`{:?}`) – prints the **full error chain** with all causes and stack traces.  
+  Use this for logging or debugging.
 
 #### Methods
 
@@ -85,7 +89,7 @@ pub struct Trace {
 }
 ```
 
-Implements `Display` for a pretty tree‑like output.
+Implements `Display` for a pretty tree‑like output (used only in `Debug` formatting of `Error`).
 
 ---
 
@@ -210,15 +214,21 @@ fn main() -> Result<(), Error> {
 }
 ```
 
-Output:
-
+**Output with `{}` (Display) – only the error message:**
 ```
 All ok! Value: 21
+Error! Value is one!
+```
+
+**Output with `{:?}` (Debug) – full chain and traces:**
+```
 [0] Error! Value is one!
 | [0] src/main.rs:39
 | [1] src/main.rs:34
 | [2] src/main.rs:28
 ```
+
+> **Note:** To see the full trace, use `println!("{:?}", err);`.
 
 ---
 
@@ -250,10 +260,14 @@ fn main() -> Result<(), Error> {
 }
 ```
 
-Output:
-
+**Display output (only messages):**
 ```
 All ok! Value: 12
+Error! Value is one!
+```
+
+**Debug output (full chain):**
+```
 [0] Error! Value is one!
 | [0] test
 | [1] foo
@@ -290,10 +304,14 @@ fn main() -> Result<(), Error> {
 }
 ```
 
-Output (only the cause chain, no traces):
-
+**Display output (only messages, no traces):**
 ```
 All ok! Value: 33
+Error! Value not formatted!
+```
+
+**Debug output (still shows the cause chain because `Debug` always includes causes):**
+```
 [0] Error! Value not formatted!
 [1] Error! Value is negative!
 ```
@@ -388,7 +406,7 @@ fn main() -> Result<(), Error<dyn IThrowable>> {
     if let Err(e) = result {
         let my_err = e.throwable();
         println!("Error code: {}", my_err.code());
-        println!("Full error: {}", e);
+        println!("Full error: {:?}", e); // Debug shows all details
     }
     Ok(())
 }
