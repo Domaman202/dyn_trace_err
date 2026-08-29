@@ -83,9 +83,10 @@ mod string_exception {
     }
 }
 
-mod display_exception {
-    use dyn_trace_err::{Error, IThrowable, catch, throw_display};
-    use std::fmt::{Display, Formatter};
+mod formattable_exception {
+    use dyn_trace_err::{catch, throw_formattable, Error, IThrowable};
+    use std::fmt::{Debug, Display, Formatter};
+    use dyn_trace_err::r#impl::Formattable;
 
     enum ErrorVariant {
         DisplayErrorFoo,
@@ -103,14 +104,28 @@ mod display_exception {
         }
     }
 
+    impl Debug for ErrorVariant {
+        fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
+            let text =
+                match self {
+                    ErrorVariant::DisplayErrorFoo => "Is debug exception - Foo!",
+                    ErrorVariant::DisplayErrorBar => "Is debug exception - Bar!",
+                };
+            f.write_str(text)
+        }
+    }
+
+    impl Formattable for ErrorVariant {
+    }
+
     fn bar() -> Result<(), Error<dyn IThrowable>> {
-        throw_display!(ErrorVariant::DisplayErrorBar)
+        throw_formattable!(ErrorVariant::DisplayErrorBar)
     }
 
     fn foo() -> Result<(), Error<dyn IThrowable>> {
         match bar() {
             Ok(()) => Ok(()),
-            Err(err) => throw_display!(ErrorVariant::DisplayErrorFoo, Some(err))
+            Err(err) => throw_formattable!(ErrorVariant::DisplayErrorFoo, Some(err))
         }
     }
 
@@ -121,19 +136,29 @@ mod display_exception {
 }
 
 mod custom_throwable {
-    use std::fmt::{Display, Formatter};
-    use dyn_trace_err::{Error, IThrowable, throw, throw_string};
+    use std::fmt::{Debug, Display, Formatter};
+    use dyn_trace_err::{Error, IThrowable, throw};
 
     enum ErrorVariant {
         ErrorFoo(i32),
-        ErrorBar(f32)
+        ErrorBar(f32),
+        ErrorSum(f32, f32, f32)
     }
 
     impl Display for ErrorVariant {
         fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
             match self {
-                ErrorVariant::ErrorFoo(value) => f.write_fmt(format_args!("Foo: {}", value)),
-                ErrorVariant::ErrorBar(value) => f.write_fmt(format_args!("Bar: {}", value))
+                ErrorVariant::ErrorSum(foo, bar, sum) => f.write_fmt(format_args!("[Display] foo({}) + bar({}) = {}", foo, bar, sum)),
+                _ => unimplemented!()
+            }
+        }
+    }
+
+    impl Debug for ErrorVariant {
+        fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+            match self {
+                ErrorVariant::ErrorSum(foo, bar, sum) => f.write_fmt(format_args!("[Debug] foo({}) + bar({}) = {}", foo, bar, sum)),
+                _ => unimplemented!()
             }
         }
     }
@@ -148,7 +173,8 @@ mod custom_throwable {
         pub fn value(&self) -> f32 {
             match self {
                 ErrorVariant::ErrorFoo(value) => *value as f32,
-                ErrorVariant::ErrorBar(value) => *value
+                ErrorVariant::ErrorBar(value) => *value,
+                ErrorVariant::ErrorSum(..) => unimplemented!()
             }
         }
     }
@@ -164,7 +190,7 @@ mod custom_throwable {
     pub fn test() -> Result<(), Error<dyn IThrowable>> {
         let foo = foo().unwrap_err().throwable().value();
         let bar = bar().unwrap_err().throwable().value();
-        throw_string!(format!("foo({}) + bar({}) = {}", foo, bar, foo + bar));
+        throw!(Box::new(ErrorVariant::ErrorSum(foo, bar, foo + bar)));
     }
 }
 
@@ -174,13 +200,13 @@ fn main() {
     println!("{}\n", traced::test().unwrap_err());
     println!("{}\n", caused::test().unwrap_err());
     println!("{}\n", string_exception::test().unwrap_err());
-    println!("{}\n", display_exception::test().unwrap_err());
+    println!("{}\n", formattable_exception::test().unwrap_err());
     println!("{}\n", custom_throwable::test().unwrap_err());
     println!("\n ============ [Debug] ============ \n");
     println!("{:?}\n", custom_traced::test().unwrap_err());
     println!("{:?}\n", traced::test().unwrap_err());
     println!("{:?}\n", caused::test().unwrap_err());
     println!("{:?}\n", string_exception::test().unwrap_err());
-    println!("{:?}\n", display_exception::test().unwrap_err());
+    println!("{:?}\n", formattable_exception::test().unwrap_err());
     println!("{:?}\n", custom_throwable::test().unwrap_err());
 }

@@ -9,8 +9,8 @@
 //!   - `my-trace` — you explicitly pass a `Trace` object.
 //!   - `no-trace` — tracing completely disabled.
 //! - Nested causes via the `IThrowable` trait.
-//! - Convenient macros: `throw!`, `catch!`, `throw_string!`, and `throw_display!`.
-//! - Built‑in error types: `StringException` and `DisplayableException`.
+//! - Convenient macros: `throw!`, `catch!`, `throw_string!`, and `throw_formattable!`.
+//! - Built‑in error types: `StringException` and `FormattableException`.
 //! - Access to error payload via `throwable()` method.
 //!
 //! ## Formatting
@@ -62,6 +62,7 @@
 //! ```
 //! # use dyn_trace_err::{Error, IThrowable, trace::Trace};
 //! # use std::fmt;
+//! # #[derive(Debug)]
 //! # struct MyError { code: u32 }
 //! # impl IThrowable for MyError { fn cause(&self) -> &Option<Box<Error<dyn IThrowable>>> { &None } }
 //! # impl fmt::Display for MyError { fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { write!(f, "err") } }
@@ -139,7 +140,7 @@ pub struct Error<T: IThrowable + ?Sized> {
 /// error or propagate errors from different sources.
 ///
 /// This type is especially useful with the provided macros (`throw!`, `catch!`,
-/// `throw_string!`, `throw_display!`), which by default return `Result<T, AnyError>`.
+/// `throw_string!`, `throw_formattable!`), which by default return `Result<T, AnyError>`.
 ///
 /// # Example
 /// ```
@@ -189,6 +190,7 @@ struct ErrorDisplayWrapper<'a> {
 /// ```
 /// # use dyn_trace_err::{IThrowable, Error};
 /// # use std::fmt;
+/// #[derive(Debug)]
 /// struct MyError {
 ///     msg: String,
 ///     cause: Option<Box<Error<dyn IThrowable>>>,
@@ -204,7 +206,7 @@ struct ErrorDisplayWrapper<'a> {
 ///     }
 /// }
 /// ```
-pub trait IThrowable: Display {
+pub trait IThrowable: Debug + Display {
     /// Returns a reference to the nested error (cause), if any.
     fn cause(&self) -> &Option<Box<Error<dyn IThrowable>>>;
 }
@@ -248,6 +250,7 @@ impl<T: IThrowable + ?Sized> Error<T> {
     /// ```
     /// # use dyn_trace_err::{Error, IThrowable, trace::Trace};
     /// # use std::fmt;
+    /// # #[derive(Debug)]
     /// # struct MyError { code: u32 }
     /// # impl IThrowable for MyError { fn cause(&self) -> &Option<Box<Error<dyn IThrowable>>> { &None } }
     /// # impl fmt::Display for MyError { fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { write!(f, "err") } }
@@ -268,7 +271,7 @@ impl<T: IThrowable + ?Sized> Error<T> {
 
     /// Internal formatting helper that respects the nesting level.
     fn display(&self, fmt: &mut Formatter<'_>, inner: usize) -> core::fmt::Result {
-        write!(fmt, "[{}] {}", inner, self.throw)?;
+        write!(fmt, "[{}] {:?}", inner, self.throw)?;
         #[cfg(not(feature = "no-trace"))]
         write!(fmt, "\n{}", self.trace)?;
         if let Some(cause) = self.throw.cause() {
@@ -284,7 +287,7 @@ impl<T: IThrowable + ?Sized> Error<T> {
 impl Display for Error<dyn IThrowable> {
     #[inline(always)]
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-        self.throw.fmt(f)
+        Display::fmt(&self.throw, f)
     }
 }
 
@@ -320,6 +323,7 @@ impl Debug for ErrorDisplayWrapper<'_> {
 /// ```
 /// # use dyn_trace_err::{throw, Error, IThrowable};
 /// # use core::fmt::{self, Display};
+/// # #[derive(Debug)]
 /// # struct MyError;
 /// # impl Display for MyError { fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { write!(f, "MyError") } }
 /// # impl IThrowable for MyError { fn cause(&self) -> &Option<Box<Error<dyn IThrowable>>> { &None } }
@@ -425,7 +429,7 @@ mod tests {
     use alloc::string::ToString;
     use alloc::vec::Vec;
 
-    /// Проверяем, что макрос возвращает ошибку с правильным сообщением и трейсом
+    /// Проверяем, что макрос throw! возвращает ошибку с правильным сообщением и трейсом
     #[test]
     fn test_throw_macro_creates_error() {
         fn failing_function() -> Result<(), Error<dyn IThrowable>> {
@@ -455,7 +459,7 @@ mod tests {
         }
     }
 
-    /// Проверяем, что макрос работает с причиной (cause)
+    /// Проверяем, что макрос throw! работает с причиной (cause)
     #[test]
     fn test_throw_with_cause() {
         fn inner() -> Result<(), Error<dyn IThrowable>> {
@@ -486,6 +490,7 @@ mod tests {
         }
     }
 
+    /// Проверяет throw_string! без причины
     #[test]
     fn test_throw_string_macro_without_cause() {
         fn failing() -> Result<(), Error<dyn IThrowable>> {
@@ -499,6 +504,7 @@ mod tests {
         assert_eq!(msg, "Simple error");
     }
 
+    /// Проверяет throw_string! с причиной
     #[test]
     fn test_throw_string_macro_with_cause() {
         fn inner() -> Result<(), Error<dyn IThrowable>> {
@@ -523,6 +529,7 @@ mod tests {
         assert_eq!(msg, "Inner error");
     }
 
+    /// Проверяет, что catch! добавляет точку трассировки
     #[test]
     fn test_catch_macro_adds_trace_point() {
         fn inner() -> Result<(), Error<dyn IThrowable>> {
@@ -563,7 +570,8 @@ mod tests {
         }
     }
 
-    /// Проверяет правильность форматирования цепочки ошибок (Display)
+    /// Проверяет правильность форматирования цепочки ошибок в Debug (полная цепочка)
+    /// и Display (только сообщение)
     #[test]
     fn test_display_formatting_with_cause() {
         fn inner() -> Result<(), Error<dyn IThrowable>> {
@@ -577,29 +585,29 @@ mod tests {
         }
 
         let err = outer().unwrap_err();
-        let output = format!("{:?}", err);
-        // Должны присутствовать оба сообщения
-        assert!(output.contains("[0] Outer"));
-        assert!(output.contains("[1] Inner"));
-        // Если трассировка включена, должны быть строки с "| [0]" для каждой ошибки
+
+        // Display должен выводить только сообщение внешней ошибки
+        let display_output = format!("{}", err);
+        assert_eq!(display_output, "Outer");
+
+        // Debug должен выводить полную цепочку с причинами и трассами
+        let debug_output = format!("{:?}", err);
+        assert!(debug_output.contains("[0] Outer"));
+        assert!(debug_output.contains("[1] Inner"));
+
         #[cfg(not(feature = "no-trace"))]
         {
-            // Проверяем, что после [0] Outer есть | [0] (трасса внешней ошибки)
-            // и после [1] Inner есть | [0] (трасса внутренней ошибки)
-            // Можно просто проверить наличие двух строк с "| [0]"
-            let count = output.matches("| [0]").count();
+            let count = debug_output.matches("| [0]").count();
             assert!(count >= 2, "Должно быть как минимум две строки с | [0] (для двух ошибок)");
-            // Убедимся, что порядок правильный: сначала внешняя, потом внутренняя
-            let pos0 = output.find("[0] Outer").unwrap();
-            let pos1 = output.find("[1] Inner").unwrap();
+            let pos0 = debug_output.find("[0] Outer").unwrap();
+            let pos1 = debug_output.find("[1] Inner").unwrap();
             assert!(pos0 < pos1, "Сообщение внешней ошибки должно идти раньше внутренней");
         }
-        // При no-trace трасс нет, но цепочка причин всё равно отображается
     }
 
-    /// Проверяет, что порядок точек трассировки соответствует порядку вызовов
+    /// Проверяет порядок точек трассировки (только с трассировкой)
     #[test]
-    #[cfg(not(feature = "no-trace"))] // тест имеет смысл только с трассировкой
+    #[cfg(not(feature = "no-trace"))]
     fn test_trace_order() {
         fn level3() -> Result<(), Error<dyn IThrowable>> {
             throw_string!("level3");
@@ -615,13 +623,10 @@ mod tests {
 
         let err = level1().unwrap_err();
         let trace = &err.trace;
-        // Проверяем, что есть три точки: level1, level2, level3
-        // При all-trace каждая точка имеет вид "file:line"
         let mut count = 0;
         let mut current = Some(trace);
         while let Some(t) = current {
             count += 1;
-            // Проверяем, что точка содержит двоеточие (формат file:line)
             assert!(t.point.contains(':'), "Точка должна быть в формате file:line");
             current = t.prev.as_deref();
         }
@@ -662,13 +667,10 @@ mod tests {
         }
 
         let err = outer().unwrap_err();
-        // Проверяем, что добавлена явная точка
         #[cfg(not(feature = "no-trace"))]
         {
             assert_eq!(err.trace.point, "explicit");
             let prev = err.trace.prev.as_ref().unwrap();
-            // предыдущая точка должна быть от throw! (автоматическая или тоже заданная)
-            // Мы не знаем точное содержимое, но она должна существовать
             assert!(prev.point.contains(':') || prev.point == "inner");
         }
     }
@@ -691,19 +693,17 @@ mod tests {
         }
     }
 
-    /// Проверяет, что при no-trace ошибка не содержит trace (и методы не паникуют)
+    /// Проверяет, что при no-trace ошибка не содержит trace
     #[test]
     #[cfg(feature = "no-trace")]
     fn test_no_trace_absence() {
         let err = Error::new(StringException::new("test".to_string(), None));
-        // Проверяем, что поле trace отсутствует на уровне типов (это проверяется компиляцией)
-        // Также проверим, что Display не содержит строк трассировки
         let output = format!("{}", err);
         assert!(!output.contains("| ["));
         assert!(output.contains("[0] test"));
     }
 
-    // Новый тест: проверка метода throwable()
+    /// Проверка метода throwable() для доступа к данным ошибки
     #[test]
     fn test_throwable_method() {
         use crate::r#impl::StringException;
@@ -714,69 +714,13 @@ mod tests {
 
         let err = fail().unwrap_err();
         let throwable = err.throwable();
-        // Проверяем, что это StringException и можем получить сообщение
         let msg = format!("{}", throwable);
         assert_eq!(msg, "test");
     }
 
-    // Новый тест: DisplayableException с пользовательским типом
+    /// Проверка пользовательского типа, реализующего IThrowable
     #[test]
-    fn test_displayable_exception() {
-        use crate::r#impl::DisplayableException;
-        use core::fmt;
-
-        #[derive(Debug)]
-        struct CustomError;
-
-        impl Display for CustomError {
-            fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-                write!(f, "Custom display")
-            }
-        }
-
-        let err = DisplayableException::new(Box::new(CustomError), None);
-        let output = format!("{}", err);
-        assert_eq!(output, "Custom display");
-    }
-
-    // Новый тест: вложенная причина с DisplayableException
-    #[test]
-    #[cfg(not(feature = "no-trace"))] // требуется Trace
-    fn test_displayable_with_cause() {
-        use crate::r#impl::DisplayableException;
-        use crate::trace::Trace;
-        use core::fmt;
-
-        #[derive(Debug)]
-        struct InnerError;
-        impl Display for InnerError {
-            fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-                write!(f, "Inner")
-            }
-        }
-        #[derive(Debug)]
-        struct OuterError;
-        impl Display for OuterError {
-            fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-                write!(f, "Outer")
-            }
-        }
-
-        let inner = DisplayableException::new(Box::new(InnerError), None);
-        let outer = DisplayableException::new(
-            Box::new(OuterError),
-            Some(Error::new(inner, Trace::new("inner_trace".to_string(), None)))
-        );
-        // Оборачиваем внешнюю ошибку в Error, чтобы получить цепочку с трейсами
-        let outer_error = Error::new(outer, Trace::new("outer_trace".to_string(), None));
-        let output = format!("{:?}", outer_error);
-        assert!(output.contains("[0] Outer"));
-        assert!(output.contains("[1] Inner"));
-    }
-
-    // Новый тест: работа с пользовательским типом, реализующим IThrowable
-    #[test]
-    #[cfg(not(feature = "no-trace"))] // требуется Trace
+    #[cfg(not(feature = "no-trace"))]
     fn test_custom_throwable_type() {
         use crate::trace::Trace;
         use core::fmt;
@@ -795,10 +739,45 @@ mod tests {
                 write!(f, "Code: {}", self.code)
             }
         }
+        impl Debug for MyErr {
+            fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+                write!(f, "Code: {}", self.code)
+            }
+        }
 
         let err = MyErr { code: 42, cause: None };
         let error = Error::new(Box::new(err), Trace::new("test".to_string(), None));
         let throwable = error.throwable();
         assert_eq!(throwable.code, 42);
+    }
+
+    /// Тест для FormattableException и макроса throw_formattable!
+    #[test]
+    fn test_formattable_exception() {
+        use crate::r#impl::Formattable;
+        use core::fmt;
+
+        struct CustomError;
+        impl Display for CustomError {
+            fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+                write!(f, "Display message")
+            }
+        }
+        impl Debug for CustomError {
+            fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+                write!(f, "Debug message")
+            }
+        }
+        impl Formattable for CustomError {}
+
+        fn fail() -> Result<(), Error<dyn IThrowable>> {
+            throw_formattable!(CustomError);
+        }
+
+        let err = fail().unwrap_err();
+        // Display должен использовать Display impl
+        assert_eq!(format!("{}", err), "Display message");
+        // Debug должен использовать Debug impl
+        assert!(format!("{:?}", err).contains("Debug message"));
     }
 }

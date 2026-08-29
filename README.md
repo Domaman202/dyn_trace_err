@@ -16,14 +16,14 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-dyn_trace_err = "0.2.0"
+dyn_trace_err = "0.4.0"
 ```
 
 By default the `"all-trace"` feature is enabled. To select a different mode, specify it explicitly:
 
 ```toml
 [dependencies.dyn_trace_err]
-version = "0.2.0"
+version = "0.4.0"
 default-features = false
 features = ["my-trace"]   # or "no-trace"
 ```
@@ -71,7 +71,7 @@ pub struct Error<T: IThrowable + ?Sized> {
 The trait that your error types must implement:
 
 ```rust
-pub trait IThrowable: Display {
+pub trait IThrowable: Debug + Display {
     fn cause(&self) -> &Option<Box<Error<dyn IThrowable>>>;
 }
 ```
@@ -131,15 +131,15 @@ A convenient wrapper that creates an error of type `StringException` (a built‑
 
 In `no-trace` mode only the first two forms are available.
 
-### `throw_display!`
+### `throw_formattable!`
 
-Creates an error from any type that implements `Display`, storing it as `DisplayableException`. Useful when you already have an error type that is `Display` but you don’t want to implement `IThrowable` manually.
+Creates an error from any type that implements **both `Display` and `Debug`**, wrapping it as `FormattableException`. This is useful when you want to have different representations for `Display` (user‑friendly) and `Debug` (detailed) for your error type.
 
 **Available forms:**
 
-- `throw_display!($expr)` – just a displayable value.
-- `throw_display!($expr, $cause)` – displayable value and a cause.
-- (for `all-trace` / `my-trace`) `throw_display!($expr, $cause, $trace)` – with an explicit trace.
+- `throw_formattable!($expr)` – just a value.
+- `throw_formattable!($expr, $cause)` – value and a cause.
+- (for `all-trace` / `my-trace`) `throw_formattable!($expr, $cause, $trace)` – with an explicit trace.
 
 In `no-trace` mode only the first two forms are available.
 
@@ -158,12 +158,12 @@ throw!(err);   // with all-trace it will add an automatic trace
 
 The `throw_string!` macro uses this type.
 
-### `DisplayableException`
+### `FormattableException`
 
-Wraps any type that implements `Display`. Useful when you want to throw an error that is not a string but you don’t want to implement `IThrowable`.
+Wraps any type that implements `Display + Debug`. It uses `Display` for the error’s `Display` output and `Debug` for the error’s `Debug` output. This allows you to have different messages for users and developers.
 
 ```rust
-use dyn_trace_err::throw_display;
+use dyn_trace_err::throw_formattable;
 use std::fmt;
 
 #[derive(Debug)]
@@ -175,13 +175,14 @@ enum MyError {
 impl fmt::Display for MyError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            MyError::Foo => write!(f, "Foo error"),
-            MyError::Bar => write!(f, "Bar error"),
+            MyError::Foo => write!(f, "Foo occurred"),
+            MyError::Bar => write!(f, "Bar occurred"),
         }
     }
 }
 
-throw_display!(MyError::Foo); // creates an error with that displayable value
+// For Debug, the derived impl will be used automatically.
+throw_formattable!(MyError::Foo); // creates an error with that value
 ```
 
 ---
@@ -318,10 +319,10 @@ Error! Value not formatted!
 
 ---
 
-### 4. Using `throw_display!` with a custom enum
+### 4. Using `throw_formattable!` with a custom enum
 
 ```rust
-use dyn_trace_err::{throw_display, catch, Error};
+use dyn_trace_err::{throw_formattable, catch, Error};
 use std::fmt;
 
 #[derive(Debug)]
@@ -341,13 +342,13 @@ impl fmt::Display for MyAppError {
 
 fn parse_input() -> Result<(), Error> {
     // ... some logic ...
-    throw_display!(MyAppError::InvalidInput)
+    throw_formattable!(MyAppError::InvalidInput)
 }
 
 fn fetch_data() -> Result<(), Error> {
     match parse_input() {
         Ok(()) => Ok(()),
-        Err(e) => throw_display!(MyAppError::NetworkFailure, Some(e)),
+        Err(e) => throw_formattable!(MyAppError::NetworkFailure, Some(e)),
     }
 }
 
@@ -422,6 +423,7 @@ You can implement `IThrowable` for your own type, adding any fields and methods.
 use dyn_trace_err::{Error, IThrowable, throw, throw_string};
 use std::fmt;
 
+#[derive(Debug)]
 enum MyErrorVariant {
     ErrorFoo(i32),
     ErrorBar(f32),
@@ -477,6 +479,7 @@ If the built‑in types are not sufficient, implement the `IThrowable` trait for
 use dyn_trace_err::{IThrowable, Error};
 use core::fmt;
 
+#[derive(Debug)]
 struct MyError {
     details: String,
     cause: Option<Box<Error<dyn IThrowable>>>,

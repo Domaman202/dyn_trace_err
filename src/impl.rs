@@ -2,13 +2,13 @@
 //!
 //! This module provides ready‑to‑use [`IThrowable`] implementations:
 //! - [`StringException`] – stores a `String` message and an optional cause.
-//! - [`DisplayableException`] – wraps any type that implements [`Display`].
+//! - [`FormattableException`] – wraps any type that implements [`Display`] + [`Debug`].
 //!
-//! Also provides the [`throw_string!`] and [`throw_display!`] macros for convenient error creation.
+//! Also provides the [`throw_string!`] and [`throw_formattable!`] macros for convenient error creation.
 
 use alloc::boxed::Box;
 use alloc::string::String;
-use core::fmt::{Display, Formatter};
+use core::fmt::{Debug, Display, Formatter};
 use crate::{Error, IThrowable};
 
 /// A simple [`IThrowable`] implementation that stores a string message and an optional cause.
@@ -27,27 +27,24 @@ pub struct StringException {
     cause: Option<Box<Error<dyn IThrowable>>>,
 }
 
-/// A [`IThrowable`] implementation that wraps any type implementing [`Display`].
+/// Trait for types that can be used with [`FormattableException`].
+/// This is a marker trait that requires both [`Display`] and [`Debug`].
+pub trait Formattable : Display + Debug {}
+
+/// Wrapper for a [`Display`] type, used to make it [`Formattable`] (uses `Display` for both).
+pub struct FormattableFromDisplay<T>(T) where T: Display;
+
+/// Wrapper for a [`Debug`] type, used to make it [`Formattable`] (uses `Debug` for both).
+pub struct FormattableFromDebug<T>(T) where T: Debug;
+
+/// A [`IThrowable`] implementation that wraps any type implementing [`Formattable`].
 ///
-/// This is useful when you already have an error type that implements `Display`
-/// but you don't want to implement `IThrowable` manually.
+/// This allows you to have different representations for `Display` (user‑friendly)
+/// and `Debug` (detailed) for your error type.
 ///
-/// Usually created via [`DisplayableException::new`] or the [`throw_display!`] macro.
-///
-/// # Example
-/// ```
-/// # use dyn_trace_err::{Error, r#impl::DisplayableException};
-/// # use std::fmt;
-/// #[derive(Debug)]
-/// enum MyError { Foo }
-/// impl fmt::Display for MyError {
-///     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { write!(f, "Foo error") }
-/// }
-/// let err = DisplayableException::new(Box::new(MyError::Foo), None);
-/// assert_eq!(err.to_string(), "Foo error");
-/// ```
-pub struct DisplayableException {
-    display: Box<dyn Display>,
+/// Usually created via [`FormattableException::new`] or the [`throw_formattable!`] macro.
+pub struct FormattableException {
+    value: Box<dyn Formattable>,
     cause: Option<Box<Error<dyn IThrowable>>>,
 }
 
@@ -88,44 +85,80 @@ impl Display for StringException {
     }
 }
 
-impl DisplayableException {
-    /// Creates a new `DisplayableException` instance, boxed as `Box<dyn IThrowable>`.
+impl Debug for StringException {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        f.write_str(&self.message)
+    }
+}
+
+impl<T> Display for FormattableFromDisplay<T> where T: Display {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl<T> Debug for FormattableFromDisplay<T> where T: Display {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl<T> Formattable for FormattableFromDisplay<T> where T: Display {}
+
+impl<T> Display for FormattableFromDebug<T> where T: Debug {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl<T> Debug for FormattableFromDebug<T> where T: Debug {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl FormattableException {
+    /// Creates a new `FormattableException` instance, boxed as `Box<dyn IThrowable>`.
     ///
     /// # Parameters
-    /// - `display` – a boxed value that implements `Display`.
+    /// - `value` – a boxed value that implements [`Formattable`] (i.e., `Display + Debug`).
     /// - `cause` – an optional cause (another error).
     ///
     /// # Example
     /// ```
-    /// # use dyn_trace_err::{Error, r#impl::DisplayableException};
+    /// # use dyn_trace_err::{Error, r#impl::{FormattableException, Formattable}};
     /// # use std::fmt;
     /// # #[derive(Debug)]
-    /// # enum MyError { Foo }
-    /// # impl fmt::Display for MyError {
-    /// #     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { write!(f, "Foo error") }
-    /// # }
-    /// let err = DisplayableException::new(Box::new(MyError::Foo), None);
-    /// assert_eq!(err.to_string(), "Foo error");
+    /// # struct MyError;
+    /// # impl fmt::Display for MyError { fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { write!(f, "display") } }
+    /// # impl Formattable for MyError {}
+    /// let err = FormattableException::new(Box::new(MyError), None);
+    /// assert_eq!(err.to_string(), "display");
     /// ```
     #[inline(always)]
-    pub fn new(display: Box<dyn Display>, cause: Option<Error<dyn IThrowable>>) -> Box<dyn IThrowable> {
+    pub fn new(value: Box<dyn Formattable>, cause: Option<Error<dyn IThrowable>>) -> Box<dyn IThrowable> {
         Box::new(Self {
-            display,
+            value,
             cause: cause.map(Box::new),
         })
     }
 }
 
-impl IThrowable for DisplayableException {
-    #[inline(always)]
-    fn cause(&self) -> &Option<Box<Error<dyn IThrowable>>> {
-        &self.cause
+impl Display for FormattableException {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        Display::fmt(&self.value, f)
     }
 }
 
-impl Display for DisplayableException {
+impl Debug for FormattableException {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-        self.display.fmt(f)
+        Debug::fmt(&self.value, f)
+    }
+}
+
+impl IThrowable for FormattableException {
+    fn cause(&self) -> &Option<Box<Error<dyn IThrowable>>> {
+        &self.cause
     }
 }
 
@@ -175,51 +208,52 @@ macro_rules! throw_string {
     };
 }
 
-/// Macro for quickly creating a [`DisplayableException`] error and returning it immediately.
+/// Macro for quickly creating a [`FormattableException`] error and returning it immediately.
 ///
 /// ## Available forms
 ///
 /// ### When `!no-trace` (i.e. `all-trace` or `my-trace`)
-/// - `throw_display!($expr)` – only a displayable value.
-/// - `throw_display!($expr, $cause)` – displayable value and cause.
-/// - `throw_display!($expr, $cause, $trace)` – displayable value, cause, and explicit trace.
+/// - `throw_formattable!($expr)` – only a value.
+/// - `throw_formattable!($expr, $cause)` – value and cause.
+/// - `throw_formattable!($expr, $cause, $trace)` – value, cause, and explicit trace.
 ///
 /// ### When `no-trace`
-/// - `throw_display!($expr)` – only a displayable value.
-/// - `throw_display!($expr, $cause)` – displayable value and cause.
+/// - `throw_formattable!($expr)` – only a value.
+/// - `throw_formattable!($expr, $cause)` – value and cause.
 ///
 /// # Example
 /// ```
-/// # use dyn_trace_err::{throw_display, IThrowable};
+/// # use dyn_trace_err::{throw_formattable, IThrowable};
 /// # use std::fmt;
 /// # #[derive(Debug)] enum E { A }
 /// # impl fmt::Display for E { fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { write!(f, "E") } }
+/// # impl dyn_trace_err::r#impl::Formattable for E {}
 /// # fn example() -> Result<(), dyn_trace_err::Error<dyn IThrowable>> {
-/// throw_display!(E::A);
+/// throw_formattable!(E::A);
 /// # Ok(())
 /// # }
 /// ```
 #[cfg(not(feature = "no-trace"))]
 #[macro_export]
-macro_rules! throw_display {
+macro_rules! throw_formattable {
     ($display:expr) => {
-        $crate::throw!($crate::r#impl::DisplayableException::new($crate::Box::new($display), None));
+        $crate::throw!($crate::r#impl::FormattableException::new($crate::Box::new($display), None));
     };
     ($display:expr, $cause:expr) => {
-        $crate::throw!($crate::r#impl::DisplayableException::new($crate::Box::new($display), $cause));
+        $crate::throw!($crate::r#impl::FormattableException::new($crate::Box::new($display), $cause));
     };
     ($display:expr, $cause:expr, $trace:expr) => {
-        $crate::throw!($crate::r#impl::DisplayableException::new($crate::Box::new($display), $cause), $trace);
+        $crate::throw!($crate::r#impl::FormattableException::new($crate::Box::new($display), $cause), $trace);
     };
 }
 
 #[cfg(feature = "no-trace")]
 #[macro_export]
-macro_rules! throw_display {
+macro_rules! throw_formattable {
     ($display:expr) => {
-        $crate::throw!($crate::r#impl::DisplayableException::new($crate::Box::new($display), None));
+        $crate::throw!($crate::r#impl::FormattableException::new($crate::Box::new($display), None));
     };
     ($display:expr, $cause:expr) => {
-        $crate::throw!($crate::r#impl::DisplayableException::new($crate::Box::new($display), $cause));
+        $crate::throw!($crate::r#impl::FormattableException::new($crate::Box::new($display), $cause));
     };
 }
