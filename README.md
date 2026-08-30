@@ -16,14 +16,14 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-dyn_trace_err = "0.4.1"
+dyn_trace_err = "0.4.2"
 ```
 
 By default the `"all-trace"` feature is enabled. To select a different mode, specify it explicitly:
 
 ```toml
 [dependencies.dyn_trace_err]
-version = "0.4.1"
+version = "0.4.2"
 default-features = false
 features = ["my-trace"]   # or "no-trace"
 ```
@@ -143,6 +143,28 @@ Creates an error from any type that implements **both `Display` and `Debug`**, w
 
 In `no-trace` mode only the first two forms are available.
 
+### `throw_formattable_string!` ✨ New
+
+Creates an error with **separate `Display` and `Debug` string representations**. This is useful when you want a concise user‑friendly message and a more detailed debug message.
+
+**Available forms:**
+
+- `throw_formattable_string!($display, $debug)` – display and debug messages.
+- `throw_formattable_string!($display, $debug, $cause)` – messages and a cause.
+- (for `all-trace` / `my-trace`) `throw_formattable_string!($display, $debug, $cause, $trace)` – messages, cause, and an explicit trace.
+
+In `no-trace` mode only the first two forms are available.
+
+**Example:**
+
+```rust
+use dyn_trace_err::throw_formattable_string;
+
+fn example() -> Result<(), dyn_trace_err::AnyError> {
+    throw_formattable_string!("User-friendly message", "Debug: detailed info");
+}
+```
+
 ---
 
 ## 📝 Built‑in Error Types
@@ -160,7 +182,7 @@ The `throw_string!` macro uses this type.
 
 ### `FormattableException`
 
-Wraps any type that implements `Display + Debug`. It uses `Display` for the error’s `Display` output and `Debug` for the error’s `Debug` output. This allows you to have different messages for users and developers.
+Wraps any type that implements `Display + Debug`. It uses `Display` for the error's `Display` output and `Debug` for the error's `Debug` output. This allows you to have different messages for users and developers.
 
 ```rust
 use dyn_trace_err::throw_formattable;
@@ -185,6 +207,20 @@ impl fmt::Display for MyError {
 throw_formattable!(MyError::Foo); // creates an error with that value
 ```
 
+### `FormattableStringException` ✨ New
+
+Stores separate `Display` and `Debug` string representations. This is ideal when you need different messages for user-facing output and debugging.
+
+```rust
+use dyn_trace_err::throw_formattable_string;
+
+fn example() -> Result<(), dyn_trace_err::AnyError> {
+    throw_formattable_string!("User message", "Debug: extra details");
+}
+```
+
+The `throw_formattable_string!` macro uses this type.
+
 ---
 
 ## 💡 Usage Examples
@@ -194,21 +230,21 @@ throw_formattable!(MyError::Foo); // creates an error with that value
 ```rust
 use dyn_trace_err::{throw_string, catch, Error};
 
-fn bar(value: i32) -> Result<String, Error> {
+fn bar(value: i32) -> Result<String, Error<dyn IThrowable>> {
     if value == 1 {
         throw_string!("Error! Value is one!");
     }
     Ok(format!("All ok! Value: {}", value))
 }
 
-fn foo(value: i32) -> Result<String, Error> {
+fn foo(value: i32) -> Result<String, Error<dyn IThrowable>> {
     if value == 0 {
         throw_string!("Error! Value is zero!");
     }
     Ok(catch!(bar(value)))
 }
 
-fn main() -> Result<(), Error> {
+fn main() -> Result<(), Error<dyn IThrowable>> {
     println!("{}", catch!(foo(21))?);
     println!("{}", catch!(foo(1))?); // this will error
     Ok(())
@@ -240,21 +276,21 @@ Here you create `Trace` objects yourself and pass them to the macros.
 ```rust
 use dyn_trace_err::{throw_string, catch, Error, trace::Trace};
 
-fn bar(value: i32) -> Result<String, Error> {
+fn bar(value: i32) -> Result<String, Error<dyn IThrowable>> {
     if value == 1 {
         throw_string!("Error! Value is one!", None, Trace::new("bar".to_string(), None));
     }
     Ok(format!("All ok! Value: {}", value))
 }
 
-fn foo(value: i32) -> Result<String, Error> {
+fn foo(value: i32) -> Result<String, Error<dyn IThrowable>> {
     if value == 0 {
         throw_string!("Error! Value is zero!", None, Trace::new("foo".to_string(), None));
     }
     Ok(catch!(bar(value), |prev| Trace::new("foo".to_string(), Some(prev))))
 }
 
-fn main() -> Result<(), Error> {
+fn main() -> Result<(), Error<dyn IThrowable>> {
     println!("{}", catch!(foo(12), |prev| Trace::new("test".to_string(), Some(prev)))?);
     println!("{}", catch!(foo(1), |prev| Trace::new("test".to_string(), Some(prev)))?);
     Ok(())
@@ -284,21 +320,21 @@ Errors do not contain the `trace` field, `catch!` simply propagates the error. M
 ```rust
 use dyn_trace_err::{throw_string, catch, Error};
 
-fn bar(value: i32) -> Result<String, Error> {
+fn bar(value: i32) -> Result<String, Error<dyn IThrowable>> {
     if value < 0 {
         throw_string!("Error! Value is negative!");
     }
     Ok(format!("All ok! Value: {}", value))
 }
 
-fn foo(value: i32) -> Result<String, Error> {
+fn foo(value: i32) -> Result<String, Error<dyn IThrowable>> {
     match bar(value) {
         Ok(val) => Ok(val),
         Err(err) => throw_string!("Error! Value not formatted!", Some(err)),
     }
 }
 
-fn main() -> Result<(), Error> {
+fn main() -> Result<(), Error<dyn IThrowable>> {
     println!("{}", catch!(foo(33))?);
     println!("{}", catch!(foo(-100))?);
     Ok(())
@@ -340,19 +376,19 @@ impl fmt::Display for MyAppError {
     }
 }
 
-fn parse_input() -> Result<(), Error> {
+fn parse_input() -> Result<(), Error<dyn IThrowable>> {
     // ... some logic ...
     throw_formattable!(MyAppError::InvalidInput)
 }
 
-fn fetch_data() -> Result<(), Error> {
+fn fetch_data() -> Result<(), Error<dyn IThrowable>> {
     match parse_input() {
         Ok(()) => Ok(()),
         Err(e) => throw_formattable!(MyAppError::NetworkFailure, Some(e)),
     }
 }
 
-fn main() -> Result<(), Error> {
+fn main() -> Result<(), Error<dyn IThrowable>> {
     catch!(fetch_data());
     Ok(())
 }
@@ -360,7 +396,29 @@ fn main() -> Result<(), Error> {
 
 ---
 
-### 5. Accessing error data via `throwable()`
+### 5. Using `throw_formattable_string!` ✨ New
+
+```rust
+use dyn_trace_err::throw_formattable_string;
+
+fn example() -> Result<(), dyn_trace_err::AnyError> {
+    throw_formattable_string!("Operation failed", "Debug: timeout after 30s");
+}
+```
+
+**Display output (`{}`):**
+```
+Operation failed
+```
+
+**Debug output (`{:?}`):**
+```
+Debug: timeout after 30s
+```
+
+---
+
+### 6. Accessing error data via `throwable()`
 
 Sometimes you need to extract additional data from the error. The `throwable()` method returns a reference to the payload, and you can call your own methods.
 
@@ -415,7 +473,7 @@ fn main() -> Result<(), Error<dyn IThrowable>> {
 
 ---
 
-### 6. Creating a custom error type with fields and methods
+### 7. Creating a custom error type with fields and methods
 
 You can implement `IThrowable` for your own type, adding any fields and methods. This allows you to carry contextual information along with the error.
 

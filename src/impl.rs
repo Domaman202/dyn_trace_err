@@ -3,8 +3,10 @@
 //! This module provides ready‑to‑use [`IThrowable`] implementations:
 //! - [`StringException`] – stores a `String` message and an optional cause.
 //! - [`FormattableException`] – wraps any type that implements [`Display`] + [`Debug`].
+//! - [`FormattableStringException`] – stores separate `Display` and `Debug` strings.
 //!
-//! Also provides the [`throw_string!`] and [`throw_formattable!`] macros for convenient error creation.
+//! Also provides the [`throw_string!`], [`throw_formattable!`], and
+//! [`throw_formattable_string!`] macros for convenient error creation.
 
 use alloc::boxed::Box;
 use alloc::string::String;
@@ -48,6 +50,32 @@ pub struct FormattableException {
     cause: Option<Box<Error<dyn IThrowable>>>,
 }
 
+/// A [`IThrowable`] implementation that stores separate `Display` and `Debug`
+/// string representations.
+///
+/// This is useful when you want a concise user‑friendly message for `Display`
+/// and a more detailed diagnostic message for `Debug`.
+///
+/// Usually created via [`FormattableStringException::new`] or the
+/// [`throw_formattable_string!`] macro.
+///
+/// # Example
+/// ```
+/// # use dyn_trace_err::{r#impl::FormattableStringException, Error, IThrowable};
+/// let err = FormattableStringException::new(
+///     "User message".to_string(),
+///     "Debug: extra info".to_string(),
+///     None,
+/// );
+/// assert_eq!(format!("{}", err), "User message");
+/// assert_eq!(format!("{:?}", err), "Debug: extra info");
+/// ```
+pub struct FormattableStringException {
+    display: String,
+    debug: String,
+    cause: Option<Box<Error<dyn IThrowable>>>,
+}
+
 impl StringException {
     /// Creates a new `StringException` instance, boxed as `Box<dyn IThrowable>`.
     ///
@@ -71,13 +99,6 @@ impl StringException {
     }
 }
 
-impl IThrowable for StringException {
-    #[inline(always)]
-    fn cause(&self) -> &Option<Box<Error<dyn IThrowable>>> {
-        &self.cause
-    }
-}
-
 impl Display for StringException {
     #[inline(always)]
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
@@ -86,18 +107,28 @@ impl Display for StringException {
 }
 
 impl Debug for StringException {
+    #[inline(always)]
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         f.write_str(&self.message)
     }
 }
 
+impl IThrowable for StringException {
+    #[inline(always)]
+    fn cause(&self) -> &Option<Box<Error<dyn IThrowable>>> {
+        &self.cause
+    }
+}
+
 impl<T> Display for FormattableFromDisplay<T> where T: Display {
+    #[inline(always)]
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         self.0.fmt(f)
     }
 }
 
 impl<T> Debug for FormattableFromDisplay<T> where T: Display {
+    #[inline(always)]
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         self.0.fmt(f)
     }
@@ -107,18 +138,21 @@ impl<T> Formattable for FormattableFromDisplay<T> where T: Display {
 }
 
 impl<T> From<T> for FormattableFromDisplay<T> where T: Display {
+    #[inline(always)]
     fn from(value: T) -> FormattableFromDisplay<T> {
         FormattableFromDisplay(value)
     }
 }
 
 impl<T> Display for FormattableFromDebug<T> where T: Debug {
+    #[inline(always)]
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         self.0.fmt(f)
     }
 }
 
 impl<T> Debug for FormattableFromDebug<T> where T: Debug {
+    #[inline(always)]
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         self.0.fmt(f)
     }
@@ -128,6 +162,7 @@ impl<T> Formattable for FormattableFromDebug<T> where T: Debug {
 }
 
 impl<T> From<T> for FormattableFromDebug<T> where T: Debug {
+    #[inline(always)]
     fn from(value: T) -> FormattableFromDebug<T> {
         FormattableFromDebug(value)
     }
@@ -161,18 +196,59 @@ impl FormattableException {
 }
 
 impl Display for FormattableException {
+    #[inline(always)]
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         Display::fmt(&self.value, f)
     }
 }
 
 impl Debug for FormattableException {
+    #[inline(always)]
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         Debug::fmt(&self.value, f)
     }
 }
 
 impl IThrowable for FormattableException {
+    #[inline(always)]
+    fn cause(&self) -> &Option<Box<Error<dyn IThrowable>>> {
+        &self.cause
+    }
+}
+
+impl FormattableStringException {
+    /// Creates a new `FormattableStringException` instance, boxed as `Box<dyn IThrowable>`.
+    ///
+    /// # Parameters
+    /// - `display` – the message used for `Display` formatting.
+    /// - `debug`   – the message used for `Debug` formatting.
+    /// - `cause`   – an optional cause (another error).
+    #[inline(always)]
+    pub fn new(display: String, debug: String, cause: Option<Error<dyn IThrowable>>) -> Box<dyn IThrowable> {
+        Box::new(Self {
+            display,
+            debug,
+            cause: cause.map(Box::new),
+        })
+    }
+}
+
+impl Display for FormattableStringException {
+    #[inline(always)]
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        f.write_str(&self.display)
+    }
+}
+
+impl Debug for FormattableStringException {
+    #[inline(always)]
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        f.write_str(&self.debug)
+    }
+}
+
+impl IThrowable for FormattableStringException {
+    #[inline(always)]
     fn cause(&self) -> &Option<Box<Error<dyn IThrowable>>> {
         &self.cause
     }
@@ -271,5 +347,52 @@ macro_rules! throw_formattable {
     };
     ($display:expr, $cause:expr) => {
         $crate::throw!($crate::r#impl::FormattableException::new($crate::Box::new($display), $cause));
+    };
+}
+
+/// Macro for creating a [`FormattableStringException`] error and returning it immediately.
+///
+/// ## Available forms
+///
+/// ### When `!no-trace` (i.e. `all-trace` or `my-trace`)
+/// - `throw_formattable_string!($display, $debug)` – only messages.
+/// - `throw_formattable_string!($display, $debug, $cause)` – messages and cause.
+/// - `throw_formattable_string!($display, $debug, $cause, $trace)` – messages, cause, and explicit trace.
+///
+/// ### When `no-trace`
+/// - `throw_formattable_string!($display, $debug)` – only messages.
+/// - `throw_formattable_string!($display, $debug, $cause)` – messages and cause.
+///
+/// # Example
+/// ```
+/// # use dyn_trace_err::throw_formattable_string;
+/// # use dyn_trace_err::IThrowable;
+/// # fn example() -> Result<(), dyn_trace_err::Error<dyn IThrowable>> {
+/// throw_formattable_string!("Operation failed", "Debug: timeout after 30s");
+/// # Ok(())
+/// # }
+/// ```
+#[cfg(not(feature = "no-trace"))]
+#[macro_export]
+macro_rules! throw_formattable_string {
+    ($display:expr, $debug:expr) => {
+        $crate::throw!($crate::r#impl::FormattableStringException::new($display.to_string(), $debug.to_string(), None));
+    };
+    ($display:expr, $debug:expr, $cause:expr) => {
+        $crate::throw!($crate::r#impl::FormattableStringException::new($display.to_string(), $debug.to_string(), $cause));
+    };
+    ($display:expr, $debug:expr, $cause:expr, $trace:expr) => {
+        $crate::throw!($crate::r#impl::FormattableStringException::new($display.to_string(), $debug.to_string(), $cause), $trace);
+    };
+}
+
+#[cfg(feature = "no-trace")]
+#[macro_export]
+macro_rules! throw_formattable_string {
+    ($display:expr, $debug:expr) => {
+        $crate::throw!($crate::r#impl::FormattableStringException::new($display.to_string(), $debug.to_string(), None));
+    };
+    ($display:expr, $debug:expr, $cause:expr) => {
+        $crate::throw!($crate::r#impl::FormattableStringException::new($display.to_string(), $debug.to_string(), $cause));
     };
 }

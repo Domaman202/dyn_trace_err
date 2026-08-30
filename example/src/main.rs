@@ -5,7 +5,8 @@
 //! - automatic tracing (`traced`),
 //! - error chaining with `cause` (`caused`),
 //! - `throw_string!` macro (`string_exception`),
-//! - and `throw_display!` macro (`display_exception`).
+//! - `throw_display!` macro (`display_exception`),
+//! - `throw_formattable_string!` macro (`formattable_string_exception`),   // <-- добавлено
 //! - custom error type with fields and methods (`custom_throwable`).
 //!
 //! At the end, errors are printed in two formats:
@@ -80,6 +81,14 @@ mod string_exception {
 
     pub fn test() -> Result<(), Error<dyn IThrowable>> {
         throw_string!("Is string exception!")
+    }
+}
+
+mod formattable_string_exception {
+    use dyn_trace_err::{Error, IThrowable, throw_formattable_string};
+
+    pub fn test() -> Result<(), Error<dyn IThrowable>> {
+        throw_formattable_string!("Is display string exception!", "Is debug string exception!")
     }
 }
 
@@ -200,6 +209,7 @@ fn main() {
     println!("{}\n", traced::test().unwrap_err());
     println!("{}\n", caused::test().unwrap_err());
     println!("{}\n", string_exception::test().unwrap_err());
+    println!("{}\n", formattable_string_exception::test().unwrap_err());
     println!("{}\n", formattable_exception::test().unwrap_err());
     println!("{}\n", custom_throwable::test().unwrap_err());
     println!("\n ============ [Debug] ============ \n");
@@ -207,6 +217,7 @@ fn main() {
     println!("{:?}\n", traced::test().unwrap_err());
     println!("{:?}\n", caused::test().unwrap_err());
     println!("{:?}\n", string_exception::test().unwrap_err());
+    println!("{:?}\n", formattable_string_exception::test().unwrap_err());
     println!("{:?}\n", formattable_exception::test().unwrap_err());
     println!("{:?}\n", custom_throwable::test().unwrap_err());
 }

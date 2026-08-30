@@ -9,8 +9,10 @@
 //!   - `my-trace` — you explicitly pass a `Trace` object.
 //!   - `no-trace` — tracing completely disabled.
 //! - Nested causes via the `IThrowable` trait.
-//! - Convenient macros: `throw!`, `catch!`, `throw_string!`, and `throw_formattable!`.
-//! - Built‑in error types: `StringException` and `FormattableException`.
+//! - Convenient macros: `throw!`, `catch!`, `throw_string!`, `throw_formattable!`,
+//!   and `throw_formattable_string!`.
+//! - Built‑in error types: `StringException`, `FormattableException`, and
+//!   `FormattableStringException`.
 //! - Access to error payload via `throwable()` method.
 //!
 //! ## Formatting
@@ -76,6 +78,14 @@
 //! # assert_eq!(err.throwable().code(), 404);
 //! # }
 //! ```
+//!
+//! ## Built‑in error types
+//! - [`StringException`](r#impl::StringException) – stores a simple string message.
+//! - [`FormattableException`](r#impl::FormattableException) – wraps any type that implements
+//!   both `Display` and `Debug`, allowing different representations.
+//! - [`FormattableStringException`](r#impl::FormattableStringException) – stores separate
+//!   `Display` and `Debug` string messages, created via the
+//!   [`throw_formattable_string!`] macro.
 
 #![no_std]
 
@@ -779,5 +789,77 @@ mod tests {
         assert_eq!(format!("{}", err), "Display message");
         // Debug должен использовать Debug impl
         assert!(format!("{:?}", err).contains("Debug message"));
+    }
+
+    /// Проверяет FormattableStringException и макрос throw_formattable_string!
+    #[test]
+    fn test_formattable_string_exception() {
+        use crate::r#impl::FormattableStringException;
+
+        // Создание через new
+        let err = FormattableStringException::new(
+            "display message".to_string(),
+            "debug message".to_string(),
+            None,
+        );
+        assert_eq!(format!("{}", err), "display message");
+        assert_eq!(format!("{:?}", err), "debug message");
+
+        // Создание через макрос
+        fn fail() -> Result<(), Error<dyn IThrowable>> {
+            throw_formattable_string!("User error", "Debug: detailed info");
+        }
+        let err = fail().unwrap_err();
+        assert_eq!(format!("{}", err), "User error");
+        assert!(format!("{:?}", err).contains("Debug: detailed info"));
+    }
+
+    /// Проверяет цепочку причин с FormattableStringException
+    #[test]
+    fn test_formattable_string_with_cause() {
+        fn inner() -> Result<(), Error<dyn IThrowable>> {
+            throw_formattable_string!("inner display", "inner debug");
+        }
+        fn outer() -> Result<(), Error<dyn IThrowable>> {
+            if let Err(e) = inner() {
+                throw_formattable_string!("outer display", "outer debug", Some(e));
+            }
+            Ok(())
+        }
+
+        let err = outer().unwrap_err();
+        // Display должен показывать только внешнее сообщение
+        assert_eq!(format!("{}", err), "outer display");
+
+        // Debug должен содержать обе ошибки
+        let debug = format!("{:?}", err);
+        assert!(debug.contains("outer debug"));
+        assert!(debug.contains("inner debug"));
+        // Проверяем, что причина присутствует
+        assert!(err.throwable().cause().is_some());
+        let cause = err.throwable().cause().as_ref().unwrap();
+        assert_eq!(format!("{}", cause), "inner display");
+    }
+
+    /// Проверяет, что throw_formattable_string! работает с явным трейсом (если не no-trace)
+    #[test]
+    #[cfg(any(feature = "all-trace", feature = "my-trace"))]
+    fn test_formattable_string_with_explicit_trace() {
+        use crate::trace::Trace;
+
+        fn fail() -> Result<(), Error<dyn IThrowable>> {
+            throw_formattable_string!(
+                "display",
+                "debug",
+                None,
+                Trace::new("custom_trace".to_string(), None)
+            );
+        }
+
+        let err = fail().unwrap_err();
+        #[cfg(not(feature = "no-trace"))]
+        {
+            assert_eq!(err.trace.point, "custom_trace");
+        }
     }
 }
