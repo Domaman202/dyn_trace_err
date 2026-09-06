@@ -72,7 +72,7 @@ The trait that your error types must implement:
 
 ```rust
 pub trait IThrowable: Debug + Display {
-    fn cause(&self) -> &Option<Box<Error<dyn IThrowable>>>;
+    fn cause(&self) -> Option<&Box<Error<dyn IThrowable>>>;
 }
 ```
 
@@ -434,8 +434,8 @@ struct MyError {
 }
 
 impl IThrowable for MyError {
-    fn cause(&self) -> &Option<Box<Error<dyn IThrowable>>> {
-        &self.cause
+    fn cause(&self) -> Option<&Box<Error<dyn IThrowable>>> {
+        self.cause.as_ref()
     }
 }
 
@@ -497,8 +497,8 @@ impl fmt::Display for MyErrorVariant {
 }
 
 impl IThrowable for MyErrorVariant {
-    fn cause(&self) -> &Option<Box<Error<dyn IThrowable>>> {
-        &None  // no nested cause in this example
+    fn cause(&self) -> Option<&Box<Error<dyn IThrowable>>> {
+        None  // no nested cause in this example
     }
 }
 
@@ -544,8 +544,8 @@ struct MyError {
 }
 
 impl IThrowable for MyError {
-    fn cause(&self) -> &Option<Box<Error<dyn IThrowable>>> {
-        &self.cause
+    fn cause(&self) -> Option<&Box<Error<dyn IThrowable>>> {
+        self.cause.as_ref()
     }
 }
 

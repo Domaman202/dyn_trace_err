@@ -115,8 +115,8 @@ impl Debug for StringException {
 
 impl IThrowable for StringException {
     #[inline(always)]
-    fn cause(&self) -> &Option<Box<Error<dyn IThrowable>>> {
-        &self.cause
+    fn cause(&self) -> Option<&Box<Error<dyn IThrowable>>> {
+        self.cause.as_ref()
     }
 }
 
@@ -211,8 +211,8 @@ impl Debug for FormattableException {
 
 impl IThrowable for FormattableException {
     #[inline(always)]
-    fn cause(&self) -> &Option<Box<Error<dyn IThrowable>>> {
-        &self.cause
+    fn cause(&self) -> Option<&Box<Error<dyn IThrowable>>> {
+        self.cause.as_ref()
     }
 }
 
@@ -249,8 +249,8 @@ impl Debug for FormattableStringException {
 
 impl IThrowable for FormattableStringException {
     #[inline(always)]
-    fn cause(&self) -> &Option<Box<Error<dyn IThrowable>>> {
-        &self.cause
+    fn cause(&self) -> Option<&Box<Error<dyn IThrowable>>> {
+        self.cause.as_ref()
     }
 }
 

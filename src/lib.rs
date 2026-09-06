@@ -66,7 +66,7 @@
 //! # use std::fmt;
 //! # #[derive(Debug)]
 //! # struct MyError { code: u32 }
-//! # impl IThrowable for MyError { fn cause(&self) -> &Option<Box<Error<dyn IThrowable>>> { &None } }
+//! # impl IThrowable for MyError { fn cause(&self) -> Option<&Box<Error<dyn IThrowable>>> { None } }
 //! # impl fmt::Display for MyError { fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { write!(f, "err") } }
 //! # impl MyError { fn code(&self) -> u32 { self.code } }
 //! # #[cfg(not(feature = "no-trace"))] {
@@ -206,8 +206,8 @@ struct ErrorDisplayWrapper<'a> {
 /// #     cause: Option<Box<Error<dyn IThrowable>>>,
 /// # }
 /// # impl IThrowable for MyError {
-/// #     fn cause(&self) -> &Option<Box<Error<dyn IThrowable>>> {
-/// #         &self.cause
+/// #     fn cause(&self) -> Option<&Box<Error<dyn IThrowable>>> {
+/// #         self.cause.as_ref()
 /// #     }
 /// # }
 /// # impl fmt::Display for MyError {
@@ -218,7 +218,7 @@ struct ErrorDisplayWrapper<'a> {
 /// ```
 pub trait IThrowable: Debug + Display {
     /// Returns a reference to the nested error (cause), if any.
-    fn cause(&self) -> &Option<Box<Error<dyn IThrowable>>>;
+    fn cause(&self) -> Option<&Box<Error<dyn IThrowable>>>;
 }
 
 impl<T: IThrowable + ?Sized> Error<T> {
@@ -262,7 +262,7 @@ impl<T: IThrowable + ?Sized> Error<T> {
     /// # use std::fmt;
     /// # #[derive(Debug)]
     /// # struct MyError { code: u32 }
-    /// # impl IThrowable for MyError { fn cause(&self) -> &Option<Box<Error<dyn IThrowable>>> { &None } }
+    /// # impl IThrowable for MyError { fn cause(&self) -> Option<&Box<Error<dyn IThrowable>>> { None } }
     /// # impl fmt::Display for MyError { fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { write!(f, "err") } }
     /// # impl MyError { fn code(&self) -> u32 { self.code } }
     /// # #[cfg(not(feature = "no-trace"))] {
@@ -286,7 +286,7 @@ impl<T: IThrowable + ?Sized> Error<T> {
         write!(fmt, "\n{}", self.trace)?;
         if let Some(cause) = self.throw.cause() {
             write!(fmt, "\n{:?}", ErrorDisplayWrapper {
-                error: cause,
+                error: &**cause,
                 inner: inner + 1,
             })?;
         }
@@ -336,7 +336,7 @@ impl Debug for ErrorDisplayWrapper<'_> {
 /// # #[derive(Debug)]
 /// # struct MyError;
 /// # impl Display for MyError { fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { write!(f, "MyError") } }
-/// # impl IThrowable for MyError { fn cause(&self) -> &Option<Box<Error<dyn IThrowable>>> { &None } }
+/// # impl IThrowable for MyError { fn cause(&self) -> Option<&Box<Error<dyn IThrowable>>> { None } }
 /// # fn example() -> Result<(), Error<dyn IThrowable>> {
 /// throw!(Box::new(MyError));
 /// # Ok(())
@@ -489,7 +489,7 @@ mod tests {
 
         let cause_opt = err.throw.cause();
         assert!(cause_opt.is_some());
-        let cause_err = cause_opt.as_ref().unwrap();
+        let cause_err = cause_opt.unwrap();
         let cause_msg = format!("{}", cause_err.throw);
         assert_eq!(cause_msg, "Inner error");
 
@@ -534,7 +534,7 @@ mod tests {
 
         let cause_opt = err.throw.cause();
         assert!(cause_opt.is_some());
-        let cause_err = cause_opt.as_ref().unwrap();
+        let cause_err = cause_opt.unwrap();
         let msg = format!("{}", cause_err.throw);
         assert_eq!(msg, "Inner error");
     }
@@ -740,8 +740,8 @@ mod tests {
             cause: Option<Box<Error<dyn IThrowable>>>,
         }
         impl IThrowable for MyErr {
-            fn cause(&self) -> &Option<Box<Error<dyn IThrowable>>> {
-                &self.cause
+            fn cause(&self) -> Option<&Box<Error<dyn IThrowable>>> {
+                self.cause.as_ref()
             }
         }
         impl Display for MyErr {
@@ -837,7 +837,7 @@ mod tests {
         assert!(debug.contains("inner debug"));
         // Проверяем, что причина присутствует
         assert!(err.throwable().cause().is_some());
-        let cause = err.throwable().cause().as_ref().unwrap();
+        let cause = err.throwable().cause().unwrap();
         assert_eq!(format!("{}", cause), "inner display");
     }
 

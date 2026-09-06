@@ -173,8 +173,8 @@ mod custom_throwable {
     }
 
     impl IThrowable for ErrorVariant {
-        fn cause(&self) -> &Option<Box<Error<dyn IThrowable>>> {
-            &None
+        fn cause(&self) -> Option<&Box<Error<dyn IThrowable>>> {
+            None
         }
     }
 
