@@ -14,6 +14,7 @@
 //! - Built‑in error types: `StringException`, `FormattableException`, and
 //!   `FormattableStringException`.
 //! - Access to error payload via `throwable()` method.
+//! - Easy conversion between concrete error types and [`AnyError`] via `From`.
 //!
 //! ## Formatting
 //! The [`Error`] type implements two formatting traits:
@@ -77,6 +78,26 @@
 //! # let err = Error::new(Box::new(MyError { code: 404 }));
 //! # assert_eq!(err.throwable().code(), 404);
 //! # }
+//! ```
+//!
+//! ## Converting between error types
+//! You can convert a concrete `Error<T>` into an `AnyError` (i.e. `Error<dyn IThrowable>`)
+//! using the `From` trait. This is particularly useful when you have functions that
+//! return a specific error type but you need to propagate them in a context expecting
+//! a dynamic error.
+//!
+//! ```
+//! # use dyn_trace_err::{Error, AnyError, IThrowable, trace::Trace};
+//! # use std::fmt;
+//! # #[derive(Debug)]
+//! # struct MyError;
+//! # impl IThrowable for MyError { fn cause(&self) -> Option<&Box<Error<dyn IThrowable>>> { None } }
+//! # impl fmt::Display for MyError { fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { write!(f, "err") } }
+//! # fn foo() -> Result<(), Error<MyError>> { Ok(()) }
+//! fn bar() -> Result<(), AnyError> {
+//!     foo()?; // automatically converted via From
+//!     Ok(())
+//! }
 //! ```
 //!
 //! ## Built‑in error types
@@ -174,6 +195,28 @@ pub struct Error<T: IThrowable + ?Sized> {
 /// #     }
 /// # }
 /// ```
+///
+/// # Converting from concrete errors
+/// You can easily convert an `Error<T>` with a concrete `T` into `AnyError`
+/// using the `From` trait:
+/// ```
+/// # use dyn_trace_err::{Error, AnyError, IThrowable, trace::Trace};
+/// # use std::fmt;
+/// # #[derive(Debug)]
+/// # struct MyError;
+/// # impl IThrowable for MyError { fn cause(&self) -> Option<&Box<Error<dyn IThrowable>>> { None } }
+/// # impl fmt::Display for MyError { fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { write!(f, "err") } }
+/// # #[cfg(not(feature = "no-trace"))] {
+/// let concrete: Error<MyError> = Error::new(Box::new(MyError), Trace::new("test".to_string(), None));
+/// let dynamic: AnyError = concrete.into();
+/// # }
+/// # #[cfg(feature = "no-trace")] {
+/// # let concrete: Error<MyError> = Error::new(Box::new(MyError));
+/// # let dynamic: AnyError = concrete.into();
+/// # }
+/// ```
+/// This is particularly useful when you have a function that returns a concrete
+/// error type but you want to propagate it in a context that expects `AnyError`.
 ///
 /// # Accessing the inner payload
 /// You can use the [`throwable()`](Error::throwable) method to get a reference to
@@ -314,6 +357,13 @@ impl Debug for ErrorDisplayWrapper<'_> {
         self.error.display(f, self.inner)
     }
 }
+
+impl<T: IThrowable + 'static> From<Error<T>> for AnyError {
+    fn from(value: Error<T>) -> Self {
+        AnyError::new(value.throw, value.trace)
+    }
+}
+
 
 /// Creates an error and immediately returns `Result` with `Err`.
 ///
