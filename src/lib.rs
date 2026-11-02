@@ -359,6 +359,12 @@ impl Debug for ErrorDisplayWrapper<'_> {
 }
 
 impl<T: IThrowable + 'static> From<Error<T>> for AnyError {
+    #[cfg(not(feature = "no-trace"))]
+    fn from(value: Error<T>) -> Self {
+        AnyError::new(value.throw, value.trace)
+    }
+
+    #[cfg(feature = "no-trace")]
     fn from(value: Error<T>) -> Self {
         AnyError::new(value.throw, value.trace)
     }
